@@ -1,0 +1,49 @@
+﻿@page "/events/details/{id:int}"
+@using EventRegistrationWebsite.Models
+@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+@inject NavigationManager Navigation
+
+<h3>Event Details</h3>
+
+@if (eventItem == null)
+{
+    <p>Event not found.</p>
+}
+else
+{
+    <dl class="row">
+        <dt class="col-sm-3">Title</dt>
+        <dd class="col-sm-9">@eventItem.Title</dd>
+
+        <dt class="col-sm-3">Description</dt>
+        <dd class="col-sm-9">@eventItem.Description</dd>
+
+        <dt class="col-sm-3">Start Date</dt>
+        <dd class="col-sm-9">@eventItem.StartDate.ToString("dd/MM/yyyy")</dd>
+
+        <dt class="col-sm-3">End Date</dt>
+        <dd class="col-sm-9">@eventItem.EndDate.ToString("dd/MM/yyyy")</dd>
+
+        <dt class="col-sm-3">Status</dt>
+        <dd class="col-sm-9">@eventItem.Status</dd>
+
+        <dt class="col-sm-3">Last Updated On</dt>
+        <dd class="col-sm-9">
+            @eventItem.LastUpdatedOn.ToString("dd/MM/yyyy HH:mm")
+        </dd>
+    </dl>
+
+    <a class="btn btn-secondary" href="/events">Back</a>
+}
+
+@code {
+    [Parameter]
+    public int id { get; set; }
+
+    private Event? eventItem;
+
+    protected override void OnInitialized()
+    {
+        eventItem = Db.Events.FirstOrDefault(e => e.EventID == id);
+    }
+}

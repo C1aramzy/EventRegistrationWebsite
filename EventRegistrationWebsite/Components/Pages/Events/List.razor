@@ -1,0 +1,57 @@
+﻿@page "/events"
+@using EventRegistrationWebsite.Models
+@using Microsoft.EntityFrameworkCore
+@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+
+<h3>Events</h3>
+
+<a class="btn btn-primary mb-3" href="/events/create">
+    Create New Event
+</a>
+
+@if (events == null)
+{
+    <p>Loading...</p>
+}
+else if (!events.Any())
+{
+    <p>No events found.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Last Updated</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in events)
+            {
+                <tr>
+                    <td>@e.Title</td>
+                    <td>@e.StartDate.ToString("dd/MM/yyyy")</td>
+                    <td>@e.EndDate.ToString("dd/MM/yyyy")</td>
+                    <td>@e.LastUpdatedOn.ToString("dd/MM/yyyy, HH:mm")</td>
+                    <td>
+                        <a class="btn btn-sm btn-danger"href="/events/delete/@e.EventID">Delete</a>
+                        <a class="btn btn-sm btn-warning"href="/events/details/@e.EventID">View </a>
+                        <a class="btn btn-sm btn-info"href="/events/edit/@e.EventID">Edit </a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+@code {
+    private List<Event>? events;
+
+    protected override async Task OnInitializedAsync()
+    {
+        events = await Db.Events.ToListAsync();
+    }
+}

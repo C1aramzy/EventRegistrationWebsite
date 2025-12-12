@@ -1,0 +1,57 @@
+﻿@page "/home"
+@using EventRegistrationWebsite.Models
+@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+
+<h3>Events</h3>
+
+<p>
+    <a href="/events/create">Create New Event</a>
+</p>
+
+@if (events == null)
+{
+    <p>Loading events...</p>
+}
+else if (!events.Any())
+{
+    <p>No events found.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in events)
+            {
+                <tr>
+                    <td>@e.Title</td>
+                    <td>@e.StartDate.ToShortDateString()</td>
+                    <td>@e.EndDate.ToShortDateString()</td>
+                    <td>@e.Status</td>
+                    <td>
+                        <a href="/events/details/@e.EventID">View</a> |
+                        <a href="/events/edit/@e.EventID">Edit</a> |
+                        <a href="/events/delete/@e.EventID">Delete</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Event>? events;
+
+    protected override void OnInitialized()
+    {
+        events = Db.Events.ToList();
+    }
+}

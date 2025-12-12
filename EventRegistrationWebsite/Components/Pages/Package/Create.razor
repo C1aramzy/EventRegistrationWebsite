@@ -1,0 +1,62 @@
+﻿@*force commit packages*@
+@page "/packages/create"
+@using EventRegistrationWebsite.Models
+@using Microsoft.AspNetCore.Components.Forms
+@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+@inject NavigationManager Navigation
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+
+
+<h3>Create Package</h3>
+
+<EditForm Model="@packageModel" OnValidSubmit="Save" FormName="CreatePackageForm">
+    <DataAnnotationsValidator/>
+    <ValidationSummary/>
+
+    <div class="mb-3">
+        <label>Package Name</label>
+        <InputText class="form-control" @bind-Value="packageModel.PackageName" />
+    </div>
+
+    <div class="mb-3">
+        <label>Description</label>
+        <InputTextArea class="form-control" @bind-Value="packageModel.Description" />
+
+    </div>
+    <div class="mb-3">
+        <label>Price</label>
+        <InputNumber class="form-control" @bind-Value="packageModel.Price" />
+    </div>
+
+    <div class="mb-3">
+        <label>Event</label>
+        <InputSelect class="form-control" @bind-Value="packageModel.EventID">
+            <option value="0">-- Select Event --</option>
+            @foreach (var e in events)
+            {
+                <option value="@e.EventID">@e.Title</option>
+            }
+        </InputSelect>
+    </div>
+    <button type="submit" class="btn btn-primary">Create</button>
+    <a class="btn btn-secondary" href="/packages">Cancel</a>
+</EditForm>
+
+@code{
+    private Package packageModel = new();
+    private List<Event> events = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        events = await Db.Events.ToListAsync();
+    }
+    private async Task Save()
+    {
+        packageModel.LastUpdatedOn = DateTime.Now;
+        packageModel.CreatedOn = DateTime.Now;
+        Db.Packages.Add(packageModel);
+        await Db.SaveChangesAsync();
+        Navigation.NavigateTo("/packages");
+    }
+}

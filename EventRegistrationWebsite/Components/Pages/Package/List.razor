@@ -1,0 +1,70 @@
+﻿@page "/packages"
+@using EventRegistrationWebsite.Models
+@using Microsoft.EntityFrameworkCore
+@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+@rendermode InteractiveServer
+
+<h3>Packages</h3>
+
+<a class="btn btn-primary mb-3" href="/packages/create">
+    Create New Package
+</a>
+
+@if (packages == null)
+{
+    <p>Loading...</p>
+}
+else if (!packages.Any())
+{
+    <p>No packages found.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Package Name</th>
+                <th>Description</th>
+                <th>Price</th>
+                <th>Event</th>
+                <th>Created On</th>
+                <th>Last Updated</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in packages)
+            {
+                <tr>
+                    <td>@p.PackageName</td>
+                    <td>@p.Description</td>
+                    <td>@p.Price.ToString("0.00")</td>
+                    <td>@p.Event?.Title</td>
+                    <td>@p.CreatedOn.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@p.LastUpdatedOn.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>
+                        <a class="btn btn-sm btn-info"
+                           href="/packages/edit/@p.PackageId">
+                            Edit
+                        </a>
+                        <a class="btn btn-sm btn-danger"
+                           href="/packages/delete/@p.PackageId">
+                            Delete
+                        </a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Package>? packages;
+
+    protected override async Task OnInitializedAsync()
+    {
+        packages = await Db.Packages
+            .Include(p => p.Event)
+            .ToListAsync();
+    }
+}

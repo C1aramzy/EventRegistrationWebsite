@@ -1,0 +1,77 @@
+﻿@page "/packages/edit/{id:int}"
+@using EventRegistrationWebsite.Models
+@using Microsoft.EntityFrameworkCore
+@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+@inject NavigationManager Navigation
+
+<h3>Edit Package</h3>
+
+@if (packageModel == null)
+{
+    <p>Package not found.</p>
+}
+else
+{
+    <EditForm Model="@packageModel" OnValidSubmit="Update" FormName="EditPackageForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label>Package Name</label>
+            <InputText class="form-control"
+                       @bind-Value="packageModel.PackageName" />
+        </div>
+
+        <div class="mb-3">
+            <label>Description</label>
+            <InputTextArea class="form-control"
+                           @bind-Value="packageModel.Description" />
+        </div>
+
+        <div class="mb-3">
+            <label>Price</label>
+            <InputNumber class="form-control"
+                         @bind-Value="packageModel.Price" />
+        </div>
+
+        <div class="mb-3">
+            <label>Event</label>
+            <InputSelect class="form-control"
+                         @bind-Value="packageModel.EventID">
+                @foreach (var e in events)
+                {
+                    <option value="@e.EventID">@e.Title</option>
+                }
+            </InputSelect>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a class="btn btn-secondary" href="/packages">Cancel</a>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public int id { get; set; }
+
+    private Package? packageModel;
+    private List<Event> events = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        packageModel = await Db.Packages
+            .FirstOrDefaultAsync(p => p.PackageId == id);
+
+        events = await Db.Events.ToListAsync();
+    }
+
+    private async Task Update()
+    {
+        if (packageModel != null)
+        {
+            packageModel.LastUpdatedOn = DateTime.Now;
+            await Db.SaveChangesAsync();
+            Navigation.NavigateTo("/packages");
+        }
+    }
+}

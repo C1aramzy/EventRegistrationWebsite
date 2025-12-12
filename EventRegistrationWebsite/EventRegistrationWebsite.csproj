@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -6,6 +6,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>aspnet-EventRegistrationWebsite-4fe778ea-413e-4214-974e-d0a2e0b6ff12</UserSecretsId>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Components\Pages\Packages\**" />
+    <Content Remove="Components\Pages\Packages\**" />
+    <EmbeddedResource Remove="Components\Pages\Packages\**" />
+    <None Remove="Components\Pages\Packages\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.22" />

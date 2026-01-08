@@ -1,59 +1,159 @@
 ﻿@page "/events"
-@using EventRegistrationWebsite.Models
-@using Microsoft.EntityFrameworkCore
-@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+@rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
 @attribute [Authorize(Roles = "Admin")]
 
-<h3>Events</h3>
+@inject ApplicationDbContext Db
+@inject NavigationManager Nav
 
-<a class="btn btn-primary mb-3" href="/events/create">
-    Create New Event
-</a>
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="mb-0">Event Management</h2>
 
-@if (events == null)
+    <button class="btn btn-primary" @onclick="GoCreate">
+        Create New Event
+    </button>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-12 col-md-6">
+                <input class="form-control"
+                       placeholder="Search by title or description"
+                       @bind="searchText"
+                       @bind:event="oninput" />
+            </div>
+
+            <div class="col-12 col-md-3">
+                <select class="form-select" @bind="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Active">Active</option>
+                    <option value="Archived">Archived</option>
+                </select>
+            </div>
+
+            <div class="col-12 col-md-3 d-grid">
+                <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (isLoading)
 {
-    <p>Loading...</p>
+    <p>Loading events...</p>
 }
-else if (!events.Any())
+else if (!FilteredEvents.Any())
 {
-    <p>No events found.</p>
+    <div class="alert alert-info">No events found.</div>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Title</th>
-                <th>Start Date</th>
-                <th>End Date</th>
-                <th>Last Updated</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var e in events)
-            {
-                <tr>
-                    <td>@e.Title</td>
-                    <td>@e.StartDate.ToString("dd/MM/yyyy")</td>
-                    <td>@e.EndDate.ToString("dd/MM/yyyy")</td>
-                    <td>@e.LastUpdatedOn.ToString("dd/MM/yyyy, HH:mm")</td>
-                    <td>
-                        <a class="btn btn-sm btn-danger"href="/events/delete/@e.EventID">Delete</a>
-                        <a class="btn btn-sm btn-warning"href="/events/details/@e.EventID">View </a>
-                        <a class="btn btn-sm btn-info"href="/events/edit/@e.EventID">Edit </a>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="row g-3">
+        @foreach (var ev in FilteredEvents)
+        {
+            <div class="col-12">
+                <div class="card">
+                    <div class="row g-0">
+                        <div class="col-12 col-md-4">
+                            <img src="@(string.IsNullOrWhiteSpace(ev.BannerImagePath) ? "/images/placeholder-event.png" : ev.BannerImagePath)"
+                                 class="img-fluid rounded-start"
+                                 style="height: 200px; width: 100%; object-fit: cover;"
+                                 alt="Event banner" />
+                        </div>
+
+                        <div class="col-12 col-md-8">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h5 class="card-title mb-1">@ev.Title</h5>
+                                        <div class="text-muted">
+                                            @ev.StartDate.ToString("dd MMM yyyy") - @ev.EndDate.ToString("dd MMM yyyy")
+                                        </div>
+
+                                        <div class="mt-2">
+                                            <span class="badge bg-secondary">@ev.Status</span>
+
+                                            @if (ev.IsOnline)
+                                            {
+                                                <span class="badge bg-info ms-2">Online</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-dark ms-2">Physical</span>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="text-end">
+                                        <div class="text-muted small">Last updated</div>
+                                        <div>@ev.LastUpdatedOn.ToString("dd/MM/yyyy HH:mm")</div>
+                                    </div>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(ev.Description))
+                                {
+                                    <p class="card-text mt-2">
+                                        @Shorten(ev.Description, 140)
+                                    </p>
+                                }
+
+                                <div class="d-flex gap-2 mt-3">
+                                    <button class="btn btn-outline-primary" @onclick="() => GoDetails(ev.EventID)">View</button>
+                                    <button class="btn btn-outline-secondary" @onclick="() => GoEdit(ev.EventID)">Edit</button>
+                                    <button class="btn btn-outline-danger" @onclick="() => GoDelete(ev.EventID)">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
 }
+
 @code {
-    private List<Event>? events;
+    private bool isLoading = true;
+    private List<Event> events = new();
+
+    private string searchText = "";
+    private string statusFilter = "";
+
+    private IEnumerable<Event> FilteredEvents =>
+        events
+            .Where(e =>
+                (string.IsNullOrWhiteSpace(searchText)
+                    || (e.Title?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+                    || (e.Description?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+                && (string.IsNullOrWhiteSpace(statusFilter)
+                    || string.Equals(e.Status, statusFilter, StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(e => e.LastUpdatedOn);
 
     protected override async Task OnInitializedAsync()
     {
-        events = await Db.Events.ToListAsync();
+        events = await Db.Events.AsNoTracking().ToListAsync();
+        isLoading = false;
+    }
+
+    private void ClearFilters()
+    {
+        searchText = "";
+        statusFilter = "";
+    }
+
+    private void GoCreate() => Nav.NavigateTo("/events/create");
+    private void GoDetails(int id) => Nav.NavigateTo($"/events/details/{id}");
+    private void GoEdit(int id) => Nav.NavigateTo($"/events/edit/{id}");
+    private void GoDelete(int id) => Nav.NavigateTo($"/events/delete/{id}");
+
+    private static string Shorten(string? text, int max)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+        text = text.Trim();
+        return text.Length <= max ? text : text.Substring(0, max) + "...";
     }
 }

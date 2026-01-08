@@ -3,15 +3,14 @@
 @using Microsoft.AspNetCore.Components.Forms
 @inject EventRegistrationWebsite.Data.ApplicationDbContext Db
 @inject NavigationManager Navigation
+@inject IWebHostEnvironment Env
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Admin")]
 
 <h3>Create Event</h3>
 
-<EditForm Model="@eventModel"
-          OnValidSubmit="Save"
-          FormName="CreateEventForm">
+<EditForm Model="@eventModel" OnValidSubmit="Save" FormName="CreateEventForm">
     <DataAnnotationsValidator />
     <ValidationSummary />
 
@@ -39,10 +38,55 @@
         <label>Status</label>
         <InputSelect class="form-control" @bind-Value="eventModel.Status">
             <option value="">-- Select Status --</option>
+            <option value="Draft">Draft</option>
             <option value="Active">Active</option>
-            <option value="Cancelled">Cancelled</option>
-            <option value="Completed">Completed</option>
+            <option value="Archived">Archived</option>
         </InputSelect>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Event Type</label>
+        <div class="form-check">
+            <InputCheckbox class="form-check-input" @bind-Value="eventModel.IsOnline" />
+            <label class="form-check-label">Online Event</label>
+        </div>
+    </div>
+
+    @if (eventModel.IsOnline)
+    {
+        <div class="mb-3">
+            <label>Online Event URL</label>
+            <InputText class="form-control" @bind-Value="eventModel.OnlineEventUrl" />
+        </div>
+    }
+    else
+    {
+        <div class="mb-3">
+            <label>Venue Name</label>
+            <InputText class="form-control" @bind-Value="eventModel.VenueName" />
+        </div>
+
+        <div class="mb-3">
+            <label>Venue Address</label>
+            <InputText class="form-control" @bind-Value="eventModel.VenueAddress" />
+        </div>
+    }
+
+    <div class="mb-3">
+        <label>Banner Image</label>
+        <InputFile OnChange="OnBannerSelected" accept="image/*" />
+
+        @if (!string.IsNullOrWhiteSpace(previewImageUrl))
+        {
+            <div class="mt-2">
+                <img src="@previewImageUrl" style="max-width: 420px; max-height: 220px; object-fit: cover;" />
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(uploadError))
+        {
+            <div class="text-danger mt-2">@uploadError</div>
+        }
     </div>
 
     <button type="submit" class="btn btn-primary">Create</button>
@@ -52,6 +96,44 @@
 @code {
     [SupplyParameterFromForm]
     private Event eventModel { get; set; } = new();
+
+    private string? previewImageUrl;
+    private string? uploadError;
+
+    private async Task OnBannerSelected(InputFileChangeEventArgs e)
+    {
+        uploadError = null;
+
+        var file = e.File;
+        if (file == null) return;
+
+        var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+        var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+
+        if (!allowed.Contains(ext))
+        {
+            uploadError = "Only JPG, PNG, or WEBP images are allowed.";
+            return;
+        }
+
+        if (file.Size > 3_000_000)
+        {
+            uploadError = "Image too large. Max 3MB.";
+            return;
+        }
+
+        var folder = Path.Combine(Env.WebRootPath, "uploads", "events");
+        Directory.CreateDirectory(folder);
+
+        var fileName = $"event_{Guid.NewGuid()}{ext}";
+        var fullPath = Path.Combine(folder, fileName);
+
+        await using var fs = new FileStream(fullPath, FileMode.Create);
+        await file.OpenReadStream(3_000_000).CopyToAsync(fs);
+
+        eventModel.BannerImagePath = $"/uploads/events/{fileName}";
+        previewImageUrl = eventModel.BannerImagePath;
+    }
 
     private async Task Save()
     {

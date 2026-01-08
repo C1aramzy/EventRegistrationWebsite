@@ -4,6 +4,8 @@
 @inject EventRegistrationWebsite.Data.ApplicationDbContext Db
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 
 <h3>Create Event</h3>
 

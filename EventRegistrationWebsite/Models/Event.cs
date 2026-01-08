@@ -25,6 +25,8 @@ namespace EventRegistrationWebsite.Models
 
         public DateTime LastUpdatedOn { get; set; } = DateTime.Now;
 
+        public List<Package> Packages { get; set; } = new();
+
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
             if (EndDate < StartDate)

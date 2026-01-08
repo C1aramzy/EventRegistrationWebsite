@@ -2,6 +2,8 @@
 @using EventRegistrationWebsite.Models
 @inject EventRegistrationWebsite.Data.ApplicationDbContext Db
 @inject NavigationManager Navigation
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 
 <h3>Event Details</h3>
 

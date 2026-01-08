@@ -3,6 +3,8 @@
 @using Microsoft.EntityFrameworkCore
 @inject EventRegistrationWebsite.Data.ApplicationDbContext Db
 @rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 
 <h3>Packages</h3>
 

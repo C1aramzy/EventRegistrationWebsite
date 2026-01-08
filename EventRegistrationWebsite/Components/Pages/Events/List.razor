@@ -2,6 +2,8 @@
 @using EventRegistrationWebsite.Models
 @using Microsoft.EntityFrameworkCore
 @inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 
 <h3>Events</h3>
 

@@ -1,11 +1,24 @@
 ﻿@page "/events/create"
+@rendermode InteractiveServer
+
+@using System
+@using System.IO
+@using System.Linq
+@using System.Collections.Generic
+@using System.Threading
+@using System.Threading.Tasks
+@using System.Globalization
+
 @using EventRegistrationWebsite.Models
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
+@using EventRegistrationWebsite.Services
+
 @inject EventRegistrationWebsite.Data.ApplicationDbContext Db
 @inject NavigationManager Navigation
 @inject IWebHostEnvironment Env
-@rendermode InteractiveServer
-@using Microsoft.AspNetCore.Authorization
+@inject OneMapService OneMap
+
 @attribute [Authorize(Roles = "Admin")]
 
 <h3>Create Event</h3>
@@ -14,91 +27,606 @@
     <DataAnnotationsValidator />
     <ValidationSummary />
 
-    <div class="mb-3">
-        <label>Title</label>
-        <InputText class="form-control" @bind-Value="eventModel.Title" />
-    </div>
+    <div class="row g-3">
+        <div class="col-12 col-lg-7">
+            <div class="card">
+                <div class="card-body">
 
-    <div class="mb-3">
-        <label>Description</label>
-        <InputTextArea class="form-control" @bind-Value="eventModel.Description" />
-    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <InputText class="form-control" @bind-Value="eventModel.Title" />
+                    </div>
 
-    <div class="mb-3">
-        <label>Start Date</label>
-        <InputDate class="form-control" @bind-Value="eventModel.StartDate" />
-    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Summary (short tagline)</label>
+                        <InputText class="form-control" @bind-Value="eventModel.Summary" />
+                    </div>
 
-    <div class="mb-3">
-        <label>End Date</label>
-        <InputDate class="form-control" @bind-Value="eventModel.EndDate" />
-    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <InputTextArea class="form-control" @bind-Value="eventModel.Description" rows="5" />
+                    </div>
 
-    <div class="mb-3">
-        <label>Status</label>
-        <InputSelect class="form-control" @bind-Value="eventModel.Status">
-            <option value="">-- Select Status --</option>
-            <option value="Draft">Draft</option>
-            <option value="Active">Active</option>
-            <option value="Archived">Archived</option>
-        </InputSelect>
-    </div>
+                    <div class="row g-2">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Start Date</label>
+                            <InputDate class="form-control" @bind-Value="eventModel.StartDate" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">End Date</label>
+                            <InputDate class="form-control" @bind-Value="eventModel.EndDate" />
+                        </div>
+                    </div>
 
-    <div class="mb-3">
-        <label class="form-label">Event Type</label>
-        <div class="form-check">
-            <InputCheckbox class="form-check-input" @bind-Value="eventModel.IsOnline" />
-            <label class="form-check-label">Online Event</label>
-        </div>
-    </div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Start Time</label>
+                            <input type="time"
+                                   class="form-control"
+                                   value="@startTimeText"
+                                   @oninput="OnStartTimeInput" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">End Time</label>
+                            <input type="time"
+                                   class="form-control"
+                                   value="@endTimeText"
+                                   @oninput="OnEndTimeInput" />
+                        </div>
+                    </div>
 
-    @if (eventModel.IsOnline)
-    {
-        <div class="mb-3">
-            <label>Online Event URL</label>
-            <InputText class="form-control" @bind-Value="eventModel.OnlineEventUrl" />
-        </div>
-    }
-    else
-    {
-        <div class="mb-3">
-            <label>Venue Name</label>
-            <InputText class="form-control" @bind-Value="eventModel.VenueName" />
-        </div>
+                    <hr class="my-4" />
 
-        <div class="mb-3">
-            <label>Venue Address</label>
-            <InputText class="form-control" @bind-Value="eventModel.VenueAddress" />
-        </div>
-    }
+                    <div class="row g-2">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Event Type</label>
+                            <select class="form-select" value="@eventModel.EventType" @onchange="OnEventTypeChanged">
+                                <option value="">Select one</option>
+                                <option value="Workshop">Workshop</option>
+                                <option value="Training">Training</option>
+                                <option value="Seminar">Seminar</option>
+                                <option value="Trial Session">Trial Session</option>
+                                <option value="Competition">Competition</option>
+                                <option value="Networking">Networking</option>
+                                <option value="Open House">Open House</option>
+                                <option value="Performance">Performance</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <div class="form-text">Choosing a type can auto fill ticketing suggestions</div>
+                        </div>
 
-    <div class="mb-3">
-        <label>Banner Image</label>
-        <InputFile OnChange="OnBannerSelected" accept="image/*" />
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Vibe</label>
+                            <select class="form-select" @bind="eventModel.EventVibe">
+                                <option value="">Optional</option>
+                                <option value="Beginner Friendly">Beginner Friendly</option>
+                                <option value="Hands On">Hands On</option>
+                                <option value="Chill">Chill</option>
+                                <option value="High Energy">High Energy</option>
+                                <option value="Formal">Formal</option>
+                                <option value="Team Based">Team Based</option>
+                                <option value="Family Friendly">Family Friendly</option>
+                            </select>
+                        </div>
+                    </div>
 
-        @if (!string.IsNullOrWhiteSpace(previewImageUrl))
-        {
-            <div class="mt-2">
-                <img src="@previewImageUrl" style="max-width: 420px; max-height: 220px; object-fit: cover;" />
+                    @if (eventModel.EventType == "Other")
+                    {
+                        <div class="mt-2">
+                            <label class="form-label">Specify Event Type</label>
+                            <InputText class="form-control" @bind-Value="eventModel.EventTypeOther" />
+                        </div>
+                    }
+
+                    <hr class="my-4" />
+
+                    <div class="mb-3">
+                        <label class="form-label">Publish</label>
+                        <div class="form-check">
+                            <InputCheckbox class="form-check-input" @bind-Value="eventModel.IsPublished" />
+                            <label class="form-check-label">Visible to users</label>
+                        </div>
+                    </div>
+
+                    @if (Warnings.Any())
+                    {
+                        <div class="alert alert-warning mb-0">
+                            <div class="fw-semibold">Quick checks</div>
+                            <ul class="mb-0">
+                                @foreach (var w in Warnings)
+                                {
+                                    <li>@w</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                </div>
             </div>
-        }
 
-        @if (!string.IsNullOrWhiteSpace(uploadError))
-        {
-            <div class="text-danger mt-2">@uploadError</div>
-        }
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="mb-3">Banner Image</h5>
+
+                    <InputFile OnChange="OnBannerSelected" accept="image/*" />
+
+                    @if (!string.IsNullOrWhiteSpace(uploadError))
+                    {
+                        <div class="text-danger mt-2">@uploadError</div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(previewImageUrl))
+                    {
+                        <div class="mt-2">
+                            <img src="@previewImageUrl"
+                                 style="max-width: 100%; max-height: 260px; object-fit: cover;" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-muted small mt-2">A banner makes your event card look more attractive</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-5">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3">Readiness</h5>
+
+                    <div class="small">
+                        <div class="d-flex justify-content-between">
+                            <span>Title added</span>
+                            <span class="fw-semibold">@BoolBadge(HasTitle)</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Banner uploaded</span>
+                            <span class="fw-semibold">@BoolBadge(HasBanner)</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Location set</span>
+                            <span class="fw-semibold">@BoolBadge(HasLocation)</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Ticketing configured</span>
+                            <span class="fw-semibold">@BoolBadge(TicketingLooksOk)</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Ready to publish</span>
+                            <span class="fw-semibold">@BoolBadge(ReadyToPublish)</span>
+                        </div>
+                    </div>
+
+                    <div class="form-text mt-2">
+                        This checklist helps you spot missing pieces quickly
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="mb-3">Location</h5>
+
+                    <div class="form-check mb-2">
+                        <InputCheckbox class="form-check-input" @bind-Value="eventModel.IsOnline" />
+                        <label class="form-check-label">Online Event</label>
+                    </div>
+
+                    @if (eventModel.IsOnline)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Online Event URL</label>
+                            <InputText class="form-control" @bind-Value="eventModel.OnlineEventUrl" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3 position-relative">
+                            <label class="form-label">Search Venue or Postal Code (OneMap)</label>
+
+                            <div class="input-group">
+                                <input class="form-control"
+                                       value="@venueSearch"
+                                       placeholder="Eg 529757 or Tampines Avenue 1"
+                                       @oninput="OnVenueInput" />
+
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ManualSearch">
+                                    Search
+                                </button>
+                            </div>
+
+                            @if (isSuggesting)
+                            {
+                                <div class="border rounded mt-1 p-2 bg-white shadow-sm"
+                                     style="position:absolute; z-index:1000; width:100%;">
+                                    <div class="small text-muted">Searching</div>
+                                </div>
+                            }
+                            else if (showSuggestions && searchResults.Any())
+                            {
+                                <div class="border rounded mt-1 bg-white shadow-sm"
+                                     style="position:absolute; z-index:1000; width:100%; max-height:280px; overflow-y:auto;">
+                                    @foreach (var r in searchResults.Take(8))
+                                    {
+                                        <button type="button"
+                                                class="list-group-item list-group-item-action"
+                                                style="border:none; width:100%; text-align:left;"
+                                                @onclick="() => SelectVenue(r)">
+                                            <div class="fw-semibold">@DisplayBuilding(r)</div>
+                                            <div class="small text-muted">@r.ADDRESS</div>
+                                            <div class="small">Postal: @r.POSTAL</div>
+                                        </button>
+                                    }
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(searchError))
+                            {
+                                <div class="text-danger mt-2">@searchError</div>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Venue Name</label>
+                            <InputText class="form-control" @bind-Value="eventModel.VenueName" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Venue Address</label>
+                            <InputText class="form-control" @bind-Value="eventModel.VenueAddress" />
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Postal Code</label>
+                                <InputText class="form-control" @bind-Value="eventModel.PostalCode" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Unit or Room</label>
+                                <InputText class="form-control" @bind-Value="eventModel.UnitRoom" />
+                            </div>
+                        </div>
+                    }
+
+                    <hr class="my-4" />
+
+                    <h5 class="mb-3">Organiser</h5>
+
+                    <div class="mb-3">
+                        <label class="form-label">Organiser Name</label>
+                        <InputText class="form-control" @bind-Value="eventModel.OrganizerName" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Contact Email</label>
+                        <InputText class="form-control" @bind-Value="eventModel.ContactEmail" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="mb-3">Ticketing</h5>
+
+                    <div class="form-check mb-3">
+                        <InputCheckbox class="form-check-input" @bind-Value="eventModel.TicketingEnabled" />
+                        <label class="form-check-label">Enable ticketing</label>
+                    </div>
+
+                    @if (!eventModel.TicketingEnabled)
+                    {
+                        <div class="text-muted">Ticketing is turned off for this event</div>
+                    }
+                    else
+                    {
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Capacity (0 = unlimited)</label>
+                                <InputNumber class="form-control" @bind-Value="eventModel.Capacity" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Max tickets per order</label>
+                                <InputNumber class="form-control" @bind-Value="eventModel.MaxTicketsPerOrder" />
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mt-2">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Min Price (SGD)</label>
+                                <InputNumber class="form-control" @bind-Value="eventModel.TicketPriceMin" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Max Price (SGD)</label>
+                                <InputNumber class="form-control" @bind-Value="eventModel.TicketPriceMax" />
+                            </div>
+                        </div>
+
+                        <div class="mt-3 p-3 rounded bg-light border">
+                            <div class="text-muted small">Price preview</div>
+                            <div class="fw-bold fs-5">@TicketPricePreview</div>
+                            <div class="small text-muted mt-1">
+                                Free if both are 0. Fixed price if Min equals Max. Range shows From Min.
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ApplySuggestedTicketing">
+                                Apply suggested settings
+                            </button>
+                            <div class="form-text mt-1">
+                                Suggestions depend on event type. You can still edit after applying.
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="d-grid gap-2 mt-3">
+                <button type="submit" class="btn btn-primary">Create</button>
+                <a class="btn btn-secondary" href="/events">Cancel</a>
+            </div>
+        </div>
     </div>
-
-    <button type="submit" class="btn btn-primary">Create</button>
-    <a class="btn btn-secondary" href="/events">Cancel</a>
 </EditForm>
 
 @code {
-    [SupplyParameterFromForm]
-    private Event eventModel { get; set; } = new();
+    private Event eventModel = new();
 
     private string? previewImageUrl;
     private string? uploadError;
+
+    private string venueSearch = "";
+    private string? searchError;
+    private List<OneMapService.OneMapResult> searchResults = new();
+
+    private bool showSuggestions;
+    private bool isSuggesting;
+
+    private CancellationTokenSource? debounceCts;
+    private string? lastTriggeredQuery;
+
+    private string startTimeText = "";
+    private string endTimeText = "";
+
+    protected override void OnInitialized()
+    {
+        eventModel.StartDate = DateTime.Today;
+        eventModel.EndDate = DateTime.Today;
+
+        eventModel.IsPublished = true;
+        eventModel.TicketingEnabled = true;
+        eventModel.MaxTicketsPerOrder = 10;
+
+        startTimeText = "";
+        endTimeText = "";
+    }
+
+    // -----------------------
+    // Readiness and warnings
+    // -----------------------
+
+    private bool HasTitle => !string.IsNullOrWhiteSpace(eventModel.Title);
+    private bool HasBanner => !string.IsNullOrWhiteSpace(eventModel.BannerImagePath);
+
+    private bool HasLocation
+    {
+        get
+        {
+            if (eventModel.IsOnline)
+            {
+                return !string.IsNullOrWhiteSpace(eventModel.OnlineEventUrl);
+            }
+
+            return !string.IsNullOrWhiteSpace(eventModel.VenueName)
+                || !string.IsNullOrWhiteSpace(eventModel.VenueAddress)
+                || !string.IsNullOrWhiteSpace(eventModel.PostalCode);
+        }
+    }
+
+    private bool TicketingLooksOk
+    {
+        get
+        {
+            if (!eventModel.TicketingEnabled) return true;
+
+            if (eventModel.MaxTicketsPerOrder <= 0) return false;
+
+            if (eventModel.TicketPriceMin < 0 || eventModel.TicketPriceMax < 0) return false;
+
+            return true;
+        }
+    }
+
+    private bool ReadyToPublish => HasTitle && HasLocation && TicketingLooksOk;
+
+    private string BoolBadge(bool ok) => ok ? "OK" : "Fix";
+
+    private List<string> Warnings
+    {
+        get
+        {
+            var w = new List<string>();
+
+            if (eventModel.EndDate.Date < eventModel.StartDate.Date)
+            {
+                w.Add("End date is earlier than start date");
+            }
+
+            if (eventModel.IsOnline && string.IsNullOrWhiteSpace(eventModel.OnlineEventUrl))
+            {
+                w.Add("Online event is missing a URL");
+            }
+
+            if (!eventModel.IsOnline)
+            {
+                if (string.IsNullOrWhiteSpace(eventModel.VenueName) && string.IsNullOrWhiteSpace(eventModel.VenueAddress))
+                {
+                    w.Add("Physical event is missing venue details");
+                }
+            }
+
+            if (eventModel.TicketingEnabled)
+            {
+                if (eventModel.MaxTicketsPerOrder <= 0)
+                {
+                    w.Add("Max tickets per order should be at least 1");
+                }
+
+                if (eventModel.Capacity < 0)
+                {
+                    w.Add("Capacity cannot be negative");
+                }
+
+                if (eventModel.TicketPriceMin < 0 || eventModel.TicketPriceMax < 0)
+                {
+                    w.Add("Ticket prices cannot be negative");
+                }
+
+                if (eventModel.TicketPriceMin == 0 && eventModel.TicketPriceMax == 0)
+                {
+                    w.Add("Ticket is set to free because both min and max are 0");
+                }
+
+                if (eventModel.TicketPriceMin > eventModel.TicketPriceMax && eventModel.TicketPriceMax != 0)
+                {
+                    w.Add("Min price is higher than max price");
+                }
+            }
+
+            if (!HasBanner)
+            {
+                w.Add("No banner uploaded yet");
+            }
+
+            return w;
+        }
+    }
+
+    // -----------------------
+    // Ticket price preview
+    // -----------------------
+
+    private string TicketPricePreview
+    {
+        get
+        {
+            var min = eventModel.TicketPriceMin;
+            var max = eventModel.TicketPriceMax;
+
+            if (!eventModel.TicketingEnabled) return "Ticketing off";
+
+            if (min <= 0 && max <= 0) return "Free";
+            if (min > 0 && max > 0 && min == max) return $"SGD {min:0.00}";
+            if (min > 0 && max > 0 && min != max) return $"From SGD {min:0.00}";
+            if (min > 0 && max <= 0) return $"From SGD {min:0.00}";
+            if (max > 0 && min <= 0) return $"SGD {max:0.00}";
+            return "Free";
+        }
+    }
+
+    private void ApplySuggestedTicketing()
+    {
+        if (!eventModel.TicketingEnabled) return;
+
+        var t = eventModel.EventType ?? "";
+
+        // Only apply suggestions when user has not set meaningful values yet
+        var hasPrices = eventModel.TicketPriceMin > 0 || eventModel.TicketPriceMax > 0;
+        var hasCapacity = eventModel.Capacity != 0;
+
+        if (string.Equals(t, "Workshop", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!hasCapacity) eventModel.Capacity = 20;
+            if (!hasPrices) { eventModel.TicketPriceMin = 15; eventModel.TicketPriceMax = 40; }
+        }
+        else if (string.Equals(t, "Training", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!hasCapacity) eventModel.Capacity = 25;
+            if (!hasPrices) { eventModel.TicketPriceMin = 0; eventModel.TicketPriceMax = 0; }
+        }
+        else if (string.Equals(t, "Seminar", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!hasCapacity) eventModel.Capacity = 80;
+            if (!hasPrices) { eventModel.TicketPriceMin = 0; eventModel.TicketPriceMax = 0; }
+        }
+        else if (string.Equals(t, "Trial Session", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!hasCapacity) eventModel.Capacity = 15;
+            if (!hasPrices) { eventModel.TicketPriceMin = 5; eventModel.TicketPriceMax = 5; }
+        }
+        else if (string.Equals(t, "Competition", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!hasCapacity) eventModel.Capacity = 60;
+            if (!hasPrices) { eventModel.TicketPriceMin = 10; eventModel.TicketPriceMax = 30; }
+        }
+        else if (string.Equals(t, "Networking", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!hasCapacity) eventModel.Capacity = 60;
+            if (!hasPrices) { eventModel.TicketPriceMin = 0; eventModel.TicketPriceMax = 0; }
+        }
+        else if (string.Equals(t, "Open House", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!hasCapacity) eventModel.Capacity = 0;
+            if (!hasPrices) { eventModel.TicketPriceMin = 0; eventModel.TicketPriceMax = 0; }
+        }
+        else if (string.Equals(t, "Performance", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!hasCapacity) eventModel.Capacity = 120;
+            if (!hasPrices) { eventModel.TicketPriceMin = 12; eventModel.TicketPriceMax = 50; }
+        }
+        else
+        {
+            if (!hasCapacity) eventModel.Capacity = 30;
+            if (!hasPrices) { eventModel.TicketPriceMin = 0; eventModel.TicketPriceMax = 0; }
+        }
+
+        // Keep default aligned for display use
+        if (eventModel.TicketPriceMin > 0 && eventModel.TicketPriceMax > 0 && eventModel.TicketPriceMin == eventModel.TicketPriceMax)
+        {
+            eventModel.TicketPriceDefault = eventModel.TicketPriceMin;
+        }
+        else
+        {
+            eventModel.TicketPriceDefault = 0;
+        }
+    }
+
+    private void OnEventTypeChanged(ChangeEventArgs e)
+    {
+        eventModel.EventType = e.Value?.ToString() ?? "";
+        if (eventModel.EventType != "Other")
+        {
+            eventModel.EventTypeOther = null;
+        }
+    }
+
+    // -----------------------
+    // Time input helpers
+    // -----------------------
+
+    private void OnStartTimeInput(ChangeEventArgs e)
+    {
+        startTimeText = e.Value?.ToString() ?? "";
+        eventModel.StartTime = ParseTimeOrNull(startTimeText);
+    }
+
+    private void OnEndTimeInput(ChangeEventArgs e)
+    {
+        endTimeText = e.Value?.ToString() ?? "";
+        eventModel.EndTime = ParseTimeOrNull(endTimeText);
+    }
+
+    private static TimeSpan? ParseTimeOrNull(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        if (TimeSpan.TryParse(s, CultureInfo.InvariantCulture, out var ts)) return ts;
+        return null;
+    }
+
+    // -----------------------
+    // Banner upload
+    // -----------------------
 
     private async Task OnBannerSelected(InputFileChangeEventArgs e)
     {
@@ -112,13 +640,13 @@
 
         if (!allowed.Contains(ext))
         {
-            uploadError = "Only JPG, PNG, or WEBP images are allowed.";
+            uploadError = "Only JPG, PNG, or WEBP images are allowed";
             return;
         }
 
         if (file.Size > 3_000_000)
         {
-            uploadError = "Image too large. Max 3MB.";
+            uploadError = "Image too large. Max 3MB";
             return;
         }
 
@@ -135,12 +663,219 @@
         previewImageUrl = eventModel.BannerImagePath;
     }
 
+    // -----------------------
+    // Save
+    // -----------------------
+
     private async Task Save()
     {
         eventModel.LastUpdatedOn = DateTime.Now;
 
+        // Location cleanup
+        if (eventModel.IsOnline)
+        {
+            eventModel.VenueName = null;
+            eventModel.VenueAddress = null;
+            eventModel.PostalCode = null;
+            eventModel.UnitRoom = null;
+        }
+        else
+        {
+            eventModel.OnlineEventUrl = null;
+        }
+
+        // Event type cleanup
+        if (eventModel.EventType != "Other")
+        {
+            eventModel.EventTypeOther = null;
+        }
+
+        // Date guard
+        if (eventModel.EndDate.Date < eventModel.StartDate.Date)
+        {
+            eventModel.EndDate = eventModel.StartDate;
+        }
+
+        // Ticketing cleanup
+        if (!eventModel.TicketingEnabled)
+        {
+            eventModel.Capacity = 0;
+            eventModel.MaxTicketsPerOrder = Math.Max(1, eventModel.MaxTicketsPerOrder);
+            eventModel.TicketPriceMin = 0;
+            eventModel.TicketPriceMax = 0;
+            eventModel.TicketPriceDefault = 0;
+        }
+        else
+        {
+            if (eventModel.MaxTicketsPerOrder <= 0) eventModel.MaxTicketsPerOrder = 1;
+            if (eventModel.Capacity < 0) eventModel.Capacity = 0;
+
+            if (eventModel.TicketPriceMin < 0) eventModel.TicketPriceMin = 0;
+            if (eventModel.TicketPriceMax < 0) eventModel.TicketPriceMax = 0;
+
+            if (eventModel.TicketPriceMin > eventModel.TicketPriceMax && eventModel.TicketPriceMax != 0)
+            {
+                var tmp = eventModel.TicketPriceMin;
+                eventModel.TicketPriceMin = eventModel.TicketPriceMax;
+                eventModel.TicketPriceMax = tmp;
+            }
+
+            // Align default for fixed price events
+            if (eventModel.TicketPriceMin > 0 && eventModel.TicketPriceMax > 0 && eventModel.TicketPriceMin == eventModel.TicketPriceMax)
+            {
+                eventModel.TicketPriceDefault = eventModel.TicketPriceMin;
+            }
+            else
+            {
+                eventModel.TicketPriceDefault = 0;
+            }
+        }
+
         Db.Events.Add(eventModel);
         await Db.SaveChangesAsync();
+
         Navigation.NavigateTo("/events");
+    }
+
+    // -----------------------
+    // OneMap search
+    // -----------------------
+
+    private async Task OnVenueInput(ChangeEventArgs e)
+    {
+        venueSearch = e.Value?.ToString() ?? "";
+        searchError = null;
+
+        var qRaw = venueSearch.Trim();
+
+        if (!ShouldTriggerSuggestions(qRaw))
+        {
+            showSuggestions = false;
+            searchResults.Clear();
+            lastTriggeredQuery = null;
+            return;
+        }
+
+        showSuggestions = true;
+
+        debounceCts?.Cancel();
+        debounceCts = new CancellationTokenSource();
+        var token = debounceCts.Token;
+
+        var isFirstTrigger = string.IsNullOrWhiteSpace(lastTriggeredQuery);
+
+        try
+        {
+            isSuggesting = true;
+
+            if (!isFirstTrigger)
+            {
+                await Task.Delay(250, token);
+                token.ThrowIfCancellationRequested();
+            }
+
+            var results = await OneMap.SearchAsync(qRaw);
+            lastTriggeredQuery = qRaw;
+
+            searchResults = results
+                .Where(r => !string.IsNullOrWhiteSpace(r.ADDRESS))
+                .Take(8)
+                .ToList();
+
+            if (searchResults.Count == 0)
+            {
+                showSuggestions = false;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+            searchError = "Unable to contact OneMap right now. Please try again";
+            showSuggestions = false;
+            searchResults.Clear();
+        }
+        finally
+        {
+            isSuggesting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ManualSearch()
+    {
+        searchError = null;
+
+        var qRaw = venueSearch.Trim();
+
+        if (!ShouldTriggerSuggestions(qRaw))
+        {
+            searchError = "Type at least 3 letters, or enter a 6 digit postal code";
+            showSuggestions = false;
+            searchResults.Clear();
+            return;
+        }
+
+        try
+        {
+            isSuggesting = true;
+            showSuggestions = true;
+
+            var results = await OneMap.SearchAsync(qRaw);
+
+            searchResults = results
+                .Where(r => !string.IsNullOrWhiteSpace(r.ADDRESS))
+                .Take(8)
+                .ToList();
+
+            if (searchResults.Count == 0)
+            {
+                searchError = "No results found";
+                showSuggestions = false;
+            }
+        }
+        catch
+        {
+            searchError = "Unable to contact OneMap right now. Please try again";
+            showSuggestions = false;
+            searchResults.Clear();
+        }
+        finally
+        {
+            isSuggesting = false;
+            StateHasChanged();
+        }
+    }
+
+    private static bool ShouldTriggerSuggestions(string q)
+    {
+        if (string.IsNullOrWhiteSpace(q)) return false;
+
+        q = q.Trim();
+        var digitsOnly = q.All(char.IsDigit);
+
+        if (digitsOnly) return q.Length == 6;
+        return q.Length >= 3;
+    }
+
+    private void SelectVenue(OneMapService.OneMapResult r)
+    {
+        eventModel.VenueName = DisplayBuilding(r);
+        eventModel.VenueAddress = r.ADDRESS ?? "";
+        eventModel.PostalCode = r.POSTAL ?? "";
+
+        venueSearch = eventModel.VenueName ?? "";
+
+        showSuggestions = false;
+        searchResults.Clear();
+    }
+
+    private static string DisplayBuilding(OneMapService.OneMapResult r)
+    {
+        if (!string.IsNullOrWhiteSpace(r.BUILDING)) return r.BUILDING!;
+        if (!string.IsNullOrWhiteSpace(r.ROAD_NAME)) return r.ROAD_NAME!;
+        if (!string.IsNullOrWhiteSpace(r.ADDRESS)) return r.ADDRESS!;
+        return "Selected venue";
     }
 }

@@ -4,6 +4,7 @@ using EventRegistrationWebsite.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EventRegistrationWebsite.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260110180630_AddStartAndEndTimeToEvent")]
+    partial class AddStartAndEndTimeToEvent
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -104,20 +107,8 @@ namespace EventRegistrationWebsite.Migrations
                     b.Property<string>("ContactEmail")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("DemoFillPercent")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DemoViewsOverride")
-                        .HasColumnType("int");
-
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("EarlyBirdEndsOn")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal?>("EarlyBirdPrice")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("datetime2");
@@ -178,9 +169,6 @@ namespace EventRegistrationWebsite.Migrations
 
                     b.Property<bool>("TicketingEnabled")
                         .HasColumnType("bit");
-
-                    b.Property<int>("TicketsSold")
-                        .HasColumnType("int");
 
                     b.Property<string>("Title")
                         .IsRequired()

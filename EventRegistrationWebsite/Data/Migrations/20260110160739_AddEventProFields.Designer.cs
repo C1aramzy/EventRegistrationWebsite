@@ -4,6 +4,7 @@ using EventRegistrationWebsite.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EventRegistrationWebsite.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260110160739_AddEventProFields")]
+    partial class AddEventProFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -98,26 +101,17 @@ namespace EventRegistrationWebsite.Migrations
                     b.Property<string>("BannerImagePath")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("CancellationReason")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("Capacity")
                         .HasColumnType("int");
 
                     b.Property<string>("ContactEmail")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("DemoFillPercent")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DemoViewsOverride")
-                        .HasColumnType("int");
-
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("EarlyBirdEndsOn")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal?>("EarlyBirdPrice")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("datetime2");
@@ -165,26 +159,25 @@ namespace EventRegistrationWebsite.Migrations
                         .HasColumnType("time");
 
                     b.Property<string>("Summary")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<decimal>("TicketPriceDefault")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(10,2)");
 
                     b.Property<decimal>("TicketPriceMax")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(10,2)");
 
                     b.Property<decimal>("TicketPriceMin")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(10,2)");
 
                     b.Property<bool>("TicketingEnabled")
                         .HasColumnType("bit");
 
-                    b.Property<int>("TicketsSold")
-                        .HasColumnType("int");
-
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<string>("UnitRoom")
                         .HasColumnType("nvarchar(max)");

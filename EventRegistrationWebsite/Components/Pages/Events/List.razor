@@ -1,25 +1,33 @@
 ﻿@page "/events"
 @rendermode InteractiveServer
+
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
 @using EventRegistrationWebsite.Data
 @using EventRegistrationWebsite.Models
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using Microsoft.JSInterop
+
 @attribute [Authorize(Roles = "Admin")]
 
 @inject ApplicationDbContext Db
 @inject NavigationManager Nav
+@inject ProtectedLocalStorage LocalStore
+@inject IJSRuntime JS
 
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h2 class="mb-0">Event Management</h2>
 
-    <button class="btn btn-primary" @onclick="GoCreate">
-        Create New Event
-    </button>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary" @onclick="GoCreate">
+            Create New Event
+        </button>
+    </div>
 </div>
 
 <div class="card mb-3">
     <div class="card-body">
-        <div class="row g-2">
+        <div class="row g-2 align-items-center">
             <div class="col-12 col-md-6">
                 <input class="form-control"
                        placeholder="Search by title or description"
@@ -30,18 +38,140 @@
             <div class="col-12 col-md-3">
                 <select class="form-select" @bind="statusFilter">
                     <option value="">All Status</option>
-                    <option value="Draft">Draft</option>
-                    <option value="Active">Active</option>
-                    <option value="Archived">Archived</option>
+                    <option value="Ongoing">Ongoing</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
                 </select>
             </div>
 
             <div class="col-12 col-md-3 d-grid">
-                <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                <button class="btn btn-outline-secondary" @onclick="ClearFilters">
+                    Clear
+                </button>
             </div>
         </div>
     </div>
 </div>
+
+@if (showGamePopup)
+{
+    <div class="position-fixed top-0 start-0 w-100 h-100"
+         style="background: rgba(0,0,0,0.55); z-index:2000;"
+         @onclick="CloseGamePopup">
+
+        <div class="card shadow-lg position-absolute top-50 start-50 translate-middle"
+             style="width:min(520px,92vw);"
+             @onclick:stopPropagation="true">
+
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="mb-1">Daily Voucher Game</h5>
+                        <div class="text-muted small">Play once per day</div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="CloseGamePopup">
+                        Close
+                    </button>
+                </div>
+
+                <hr />
+
+                @if (playedToday && !gameFinished)
+                {
+                    <div class="alert alert-info mb-3">
+                        You already played today.
+                        Come back tomorrow or ask admin to reset.
+                    </div>
+
+                    <button class="btn btn-primary w-100" @onclick="CloseGamePopup">
+                        OK
+                    </button>
+                }
+                else if (!gameFinished)
+                {
+                    <div class="fw-semibold mb-2">Pick one box</div>
+
+                    <div class="row g-2">
+                        @for (int i = 0; i < 3; i++)
+                        {
+                            <div class="col-4 d-grid">
+                                <button class="btn btn-outline-primary py-4"
+                                        @onclick="() => PickBox(i)">
+                                    Box @(i + 1)
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    @if (wonVoucher)
+                    {
+                        <div class="alert alert-success">
+                            🎉 You won a voucher
+                        </div>
+                        <div class="fw-semibold">
+                            Code:
+                            <span class="font-monospace">@voucherCode</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning">
+                            Not this time
+                        </div>
+                    }
+
+                    <button class="btn btn-primary w-100 mt-2" @onclick="CloseGamePopup">
+                        Done
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDemoControls)
+{
+    <div class="position-fixed top-0 start-0 w-100 h-100"
+         style="background: rgba(0,0,0,0.55); z-index:2100;"
+         @onclick="CloseDemoControls">
+
+        <div class="card shadow-lg position-absolute top-50 start-50 translate-middle"
+             style="width:min(560px,92vw);"
+             @onclick:stopPropagation="true">
+
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="mb-1">Demo controls</h5>
+                        <div class="text-muted small">@demoEventTitle</div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="CloseDemoControls">
+                        Close
+                    </button>
+                </div>
+
+                <hr />
+
+                @if (!string.IsNullOrWhiteSpace(demoMessage))
+                {
+                    <div class="alert alert-info">@demoMessage</div>
+                }
+
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary" @onclick="OpenDailyGame">
+                        Open daily game
+                    </button>
+
+                    <button class="btn btn-outline-danger" @onclick="AdminResetGame">
+                        Reset daily game for this browser
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @if (isLoading)
 {
@@ -57,55 +187,99 @@ else
         @foreach (var ev in FilteredEvents)
         {
             <div class="col-12">
-                <div class="card">
-                    <div class="row g-0">
-                        <div class="col-12 col-md-4">
-                            <img src="@(string.IsNullOrWhiteSpace(ev.BannerImagePath) ? "/images/placeholder-event.png" : ev.BannerImagePath)"
+                <div class="card shadow-sm">
+                    <div class="row g-0 align-items-stretch">
+                        <div class="col-5">
+                            <img src="@(string.IsNullOrWhiteSpace(ev.BannerImagePath) ? "/images/placeholder-eventPic.png" : ev.BannerImagePath)"
                                  class="img-fluid rounded-start"
-                                 style="height: 200px; width: 100%; object-fit: cover;"
-                                 alt="Event banner" />
+                                 style="height:240px;width:100%;object-fit:cover;" />
                         </div>
 
-                        <div class="col-12 col-md-8">
+                        <div class="col-7">
                             <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <h5 class="card-title mb-1">@ev.Title</h5>
+                                <div class="d-flex justify-content-between align-items-start gap-3">
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-1 fw-semibold">@ev.Title</h5>
                                         <div class="text-muted">
-                                            @ev.StartDate.ToString("dd MMM yyyy") - @ev.EndDate.ToString("dd MMM yyyy")
-                                        </div>
-
-                                        <div class="mt-2">
-                                            <span class="badge bg-secondary">@ev.Status</span>
-
-                                            @if (ev.IsOnline)
-                                            {
-                                                <span class="badge bg-info ms-2">Online</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge bg-dark ms-2">Physical</span>
-                                            }
+                                            @($"{ev.StartDate:dd MMM yyyy} - {ev.EndDate:dd MMM yyyy}")
                                         </div>
                                     </div>
 
                                     <div class="text-end">
                                         <div class="text-muted small">Last updated</div>
-                                        <div>@ev.LastUpdatedOn.ToString("dd/MM/yyyy HH:mm")</div>
+                                        <div class="fw-semibold">@($"{ev.LastUpdatedOn:dd/MM/yyyy HH:mm}")</div>
+                                    </div>
+
+                                    <div class="d-flex align-items-start gap-2">
+                                        <button class="btn btn-outline-secondary"
+                                                @onclick="() => ShareEvent(ev.EventID)">
+                                            Share
+                                        </button>
+
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-secondary dropdown-toggle"
+                                                    data-bs-toggle="dropdown"
+                                                    aria-expanded="false">
+                                                ⋯
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li>
+                                                    <button class="dropdown-item" @onclick="() => GoDetails(ev.EventID)">
+                                                        View
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item" @onclick="() => GoEdit(ev.EventID)">
+                                                        Edit
+                                                    </button>
+                                                </li>
+                                                <li><hr class="dropdown-divider" /></li>
+                                                <li>
+                                                    <button class="dropdown-item" @onclick="() => GoStats(ev.EventID)">
+                                                        View stats
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item" @onclick="() => OpenDemoControls(ev)">
+                                                        Demo controls
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-3 d-flex flex-wrap gap-2">
+                                    @if (!string.IsNullOrWhiteSpace(ev.ComputedStatus))
+                                    {
+                                        <span class="badge rounded-pill bg-secondary">@ev.ComputedStatus</span>
+                                    }
+                                </div>
+
+                                <div class="mt-3">
+                                    <div class="text-muted small mb-1">Capacity</div>
+                                    <div class="progress" style="height:10px;">
+                                        <div class="progress-bar" role="progressbar" style="width:0%"></div>
                                     </div>
                                 </div>
 
                                 @if (!string.IsNullOrWhiteSpace(ev.Description))
                                 {
-                                    <p class="card-text mt-2">
-                                        @Shorten(ev.Description, 140)
-                                    </p>
+                                    <div class="mt-3">
+                                        @ev.Description
+                                    </div>
                                 }
 
-                                <div class="d-flex gap-2 mt-3">
-                                    <button class="btn btn-outline-primary" @onclick="() => GoDetails(ev.EventID)">View</button>
-                                    <button class="btn btn-outline-secondary" @onclick="() => GoEdit(ev.EventID)">Edit</button>
-                                    <button class="btn btn-outline-danger" @onclick="() => GoDelete(ev.EventID)">Delete</button>
+                                <div class="mt-3 d-flex justify-content-end gap-2">
+                                    <button class="btn btn-outline-primary" style="min-width:160px;" @onclick="() => GoDetails(ev.EventID)">
+                                        View
+                                    </button>
+                                    <button class="btn btn-outline-secondary" style="min-width:160px;" @onclick="() => GoEdit(ev.EventID)">
+                                        Edit
+                                    </button>
+                                    <button class="btn btn-outline-danger" style="min-width:160px;" @onclick="() => GoDelete(ev.EventID)">
+                                        Delete
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -123,14 +297,24 @@ else
     private string searchText = "";
     private string statusFilter = "";
 
+    private bool showGamePopup;
+    private bool playedToday;
+    private bool gameFinished;
+    private bool wonVoucher;
+    private string voucherCode = "";
+
+    private bool showDemoControls;
+    private string demoEventTitle = "";
+    private string demoMessage = "";
+
     private IEnumerable<Event> FilteredEvents =>
         events
             .Where(e =>
                 (string.IsNullOrWhiteSpace(searchText)
-                    || (e.Title?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+                    || e.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase)
                     || (e.Description?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false))
                 && (string.IsNullOrWhiteSpace(statusFilter)
-                    || string.Equals(e.Status, statusFilter, StringComparison.OrdinalIgnoreCase)))
+                    || e.ComputedStatus == statusFilter))
             .OrderByDescending(e => e.LastUpdatedOn);
 
     protected override async Task OnInitializedAsync()
@@ -149,11 +333,76 @@ else
     private void GoDetails(int id) => Nav.NavigateTo($"/events/details/{id}");
     private void GoEdit(int id) => Nav.NavigateTo($"/events/edit/{id}");
     private void GoDelete(int id) => Nav.NavigateTo($"/events/delete/{id}");
+    private void GoStats(int id) => Nav.NavigateTo($"/events/stats/{id}");
 
-    private static string Shorten(string? text, int max)
+    private async Task ShareEvent(int id)
     {
-        if (string.IsNullOrWhiteSpace(text)) return "";
-        text = text.Trim();
-        return text.Length <= max ? text : text.Substring(0, max) + "...";
+        var url = Nav.ToAbsoluteUri($"/events/details/{id}").ToString();
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+            await JS.InvokeVoidAsync("alert", "Link copied to clipboard");
+        }
+        catch
+        {
+            await JS.InvokeVoidAsync("prompt", "Copy this link", url);
+        }
+    }
+
+    private void OpenDemoControls(Event ev)
+    {
+        demoEventTitle = ev.Title ?? "";
+        demoMessage = "";
+        showDemoControls = true;
+    }
+
+    private void CloseDemoControls()
+    {
+        showDemoControls = false;
+        demoMessage = "";
+    }
+
+    private async Task OpenDailyGame()
+    {
+        playedToday = await HasPlayedToday();
+        gameFinished = false;
+        wonVoucher = false;
+        voucherCode = "";
+        showGamePopup = true;
+    }
+
+    private void CloseGamePopup()
+    {
+        showGamePopup = false;
+    }
+
+    private async Task PickBox(int index)
+    {
+        if (gameFinished) return;
+
+        var winBox = DateTime.Now.Millisecond % 3;
+        wonVoucher = index == winBox;
+
+        if (wonVoucher)
+            voucherCode = $"VOUCHER{DateTime.Now:HHmmss}";
+
+        gameFinished = true;
+        playedToday = true;
+
+        await LocalStore.SetAsync("daily_game_played", DateTime.Today.ToString("yyyyMMdd"));
+    }
+
+    private async Task<bool> HasPlayedToday()
+    {
+        var key = DateTime.Today.ToString("yyyyMMdd");
+        var stored = await LocalStore.GetAsync<string>("daily_game_played");
+        return stored.Success && stored.Value == key;
+    }
+
+    private async Task AdminResetGame()
+    {
+        await LocalStore.DeleteAsync("daily_game_played");
+        playedToday = false;
+        demoMessage = "Daily game reset for this browser.";
     }
 }

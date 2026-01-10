@@ -1,96 +1,76 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EventRegistrationWebsite.Models
 {
-    public class Event : IValidatableObject
+    public class Event
     {
         [Key]
         public int EventID { get; set; }
 
         [Required]
-        [StringLength(100)]
-        public string Title { get; set; } = string.Empty;
+        public string Title { get; set; } = "";
 
-        [StringLength(500)]
+        public string? Summary { get; set; }
         public string? Description { get; set; }
 
-        [Required]
         public DateTime StartDate { get; set; } = DateTime.Today;
+        public DateTime EndDate { get; set; } = DateTime.Today;
+        public TimeSpan? StartTime { get; set; }
+        public TimeSpan? EndTime { get; set; }
 
-        [Required]
-        public DateTime EndDate { get; set; } = DateTime.Today.AddDays(1);
+        public bool IsOnline { get; set; }
+        public string? OnlineEventUrl { get; set; }
 
-        [Required]
-        [StringLength(20)]
-        public string Status { get; set; } = "Active"; // Draft, Active, Archived
+        public string? VenueName { get; set; }
+        public string? VenueAddress { get; set; }
+        public string? PostalCode { get; set; }
+        public string? UnitRoom { get; set; }
+
+        public string? EventType { get; set; }
+        public string? EventTypeOther { get; set; }
+        public string? EventVibe { get; set; }
+
+        public bool IsPublished { get; set; }
+        public bool IsCancelled { get; set; }
+
+        public string? BannerImagePath { get; set; }
 
         public DateTime LastUpdatedOn { get; set; } = DateTime.Now;
 
-        [StringLength(200)]
-        public string? VenueName { get; set; }
+        public string? OrganizerName { get; set; }
+        public string? ContactEmail { get; set; }
 
-        [StringLength(300)]
-        public string? VenueAddress { get; set; }
+        public bool TicketingEnabled { get; set; }
+        public int Capacity { get; set; } 
+        public int MaxTicketsPerOrder { get; set; } = 10;
 
-        [StringLength(100)]
-        public string? City { get; set; }
+        public decimal TicketPriceMin { get; set; } = 0;
+        public decimal TicketPriceMax { get; set; } = 0;
+        public decimal TicketPriceDefault { get; set; } = 0;
 
-        [StringLength(50)]
-        public string? PostalCode { get; set; }
+        public int TicketsSold { get; set; } = 0;
 
-        public bool IsOnline { get; set; }
+        public int? DemoFillPercent { get; set; }
 
-        [StringLength(200)]
-        public string? OnlineEventUrl { get; set; }
+        public int? DemoViewsOverride { get; set; }
 
-        [Required]
-        public DateTime RegistrationOpen { get; set; } = DateTime.Today;
+        public DateTime? EarlyBirdEndsOn { get; set; }
+        public decimal? EarlyBirdPrice { get; set; }
 
-        [Required]
-        public DateTime RegistrationClose { get; set; } = DateTime.Today.AddDays(7);
-
-        [StringLength(255)]
-        public string? BannerImagePath { get; set; }
-
-        public List<Package> Packages { get; set; } = new();
-
-        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        [NotMapped]
+        public string ComputedStatus
         {
-            if (EndDate < StartDate)
+            get
             {
-                yield return new ValidationResult(
-                    "End Date must be later than or equal to Start Date.",
-                    new[] { nameof(EndDate) }
-                );
-            }
+                if (IsCancelled) return "Cancelled";
 
-            if (RegistrationClose < RegistrationOpen)
-            {
-                yield return new ValidationResult(
-                    "Registration Close must be later than or equal to Registration Open.",
-                    new[] { nameof(RegistrationClose) }
-                );
-            }
+                var today = DateTime.Today;
 
-            if (!IsOnline)
-            {
-                if (string.IsNullOrWhiteSpace(VenueName) && string.IsNullOrWhiteSpace(VenueAddress))
-                {
-                    yield return new ValidationResult(
-                        "For a physical event, please provide a venue name or venue address.",
-                        new[] { nameof(VenueName), nameof(VenueAddress) }
-                    );
-                }
-            }
-            else
-            {
-                if (string.IsNullOrWhiteSpace(OnlineEventUrl))
-                {
-                    yield return new ValidationResult(
-                        "For an online event, please provide an online event URL.",
-                        new[] { nameof(OnlineEventUrl) }
-                    );
-                }
+                if (EndDate.Date < today) return "Completed";
+                if (StartDate.Date > today) return "Upcoming";
+                return "Ongoing";
             }
         }
     }

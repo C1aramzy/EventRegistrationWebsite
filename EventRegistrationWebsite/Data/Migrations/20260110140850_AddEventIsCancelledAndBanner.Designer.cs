@@ -4,6 +4,7 @@ using EventRegistrationWebsite.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EventRegistrationWebsite.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260110140850_AddEventIsCancelledAndBanner")]
+    partial class AddEventIsCancelledAndBanner
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -96,43 +99,19 @@ namespace EventRegistrationWebsite.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("EventID"));
 
                     b.Property<string>("BannerImagePath")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
 
-                    b.Property<int>("Capacity")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ContactEmail")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("DemoFillPercent")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DemoViewsOverride")
-                        .HasColumnType("int");
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("EarlyBirdEndsOn")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal?>("EarlyBirdPrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("datetime2");
-
-                    b.Property<TimeSpan?>("EndTime")
-                        .HasColumnType("time");
-
-                    b.Property<string>("EventType")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("EventTypeOther")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("EventVibe")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsCancelled")
                         .HasColumnType("bit");
@@ -140,60 +119,32 @@ namespace EventRegistrationWebsite.Migrations
                     b.Property<bool>("IsOnline")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsPublished")
-                        .HasColumnType("bit");
-
                     b.Property<DateTime>("LastUpdatedOn")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("MaxTicketsPerOrder")
-                        .HasColumnType("int");
-
                     b.Property<string>("OnlineEventUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("OrganizerName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("PostalCode")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<TimeSpan?>("StartTime")
-                        .HasColumnType("time");
-
-                    b.Property<string>("Summary")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("TicketPriceDefault")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("TicketPriceMax")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("TicketPriceMin")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<bool>("TicketingEnabled")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("TicketsSold")
-                        .HasColumnType("int");
-
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("UnitRoom")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("VenueAddress")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
 
                     b.Property<string>("VenueName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.HasKey("EventID");
 
@@ -372,7 +323,7 @@ namespace EventRegistrationWebsite.Migrations
             modelBuilder.Entity("EventRegistrationWebsite.Models.Package", b =>
                 {
                     b.HasOne("EventRegistrationWebsite.Models.Event", "Event")
-                        .WithMany()
+                        .WithMany("Packages")
                         .HasForeignKey("EventID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -429,6 +380,11 @@ namespace EventRegistrationWebsite.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("EventRegistrationWebsite.Models.Event", b =>
+                {
+                    b.Navigation("Packages");
                 });
 #pragma warning restore 612, 618
         }

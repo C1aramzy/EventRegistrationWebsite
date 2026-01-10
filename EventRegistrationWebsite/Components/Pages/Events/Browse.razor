@@ -1,0 +1,578 @@
+﻿@page "/events/browse"
+@rendermode InteractiveServer
+
+@using System
+@using System.Linq
+@using System.Collections.Generic
+
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
+
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+
+@inject ApplicationDbContext Db
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<CascadingAuthenticationState>
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h2 class="mb-0">Events</h2>
+
+        <button type="button" class="btn btn-outline-primary" @onclick="OpenGame">
+            🎁 Play for voucher
+        </button>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-12 col-md-6">
+                    <input class="form-control"
+                           placeholder="Search by title or description"
+                           @bind="searchText"
+                           @bind:event="oninput" />
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <select class="form-select" @bind="modeFilter">
+                        <option value="">All</option>
+                        <option value="Online">Online</option>
+                        <option value="Physical">Physical</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-3 d-grid">
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <p>Loading events...</p>
+    }
+    else if (!FilteredEvents.Any())
+    {
+        <div class="alert alert-info">No events found.</div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var ev in FilteredEvents)
+            {
+                <div class="col-12">
+                    <div class="card">
+                        <div class="row g-0">
+                            <div class="col-12 col-md-4">
+                                <img src="@(string.IsNullOrWhiteSpace(ev.BannerImagePath) ? "/images/placeholder-eventPic.png" : ev.BannerImagePath)"
+                                     class="img-fluid rounded-start"
+                                     style="height: 200px; width: 100%; object-fit: cover;"
+                                     alt="Event banner" />
+                            </div>
+
+                            <div class="col-12 col-md-8">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start gap-3">
+                                        <div class="flex-grow-1">
+                                            <h5 class="card-title mb-1">@ev.Title</h5>
+                                            <div class="text-muted">
+                                                @ev.StartDate.ToString("dd MMM yyyy") to @ev.EndDate.ToString("dd MMM yyyy")
+                                            </div>
+
+                                            <div class="mt-2 d-flex flex-wrap gap-2">
+                                                <span class="badge bg-secondary">@ev.ComputedStatus</span>
+
+                                                @if (ev.IsOnline)
+                                                {
+                                                    <span class="badge bg-info">Online</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-dark">Physical</span>
+                                                }
+
+                                                @if (!string.IsNullOrWhiteSpace(ev.EventVibe))
+                                                {
+                                                    <span class="badge bg-light text-dark border">@ev.EventVibe</span>
+                                                }
+
+                                                @if (IsBeginnerFriendly(ev))
+                                                {
+                                                    <span class="badge bg-success">Beginner Friendly</span>
+                                                }
+
+                                                <span class="badge bg-primary">
+                                                    <span style="font-size:1.05rem">@PopularityFace(ev)</span>
+                                                    <span class="ms-1">@PopularityLabel(ev)</span>
+                                                </span>
+
+                                                @if (ev.TicketingEnabled && !ev.IsCancelled)
+                                                {
+                                                    <span class="badge bg-success">@TicketPriceText(ev)</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-dark">Ticketing off</span>
+                                                }
+                                            </div>
+
+                                            @if (!string.IsNullOrWhiteSpace(ev.Summary))
+                                            {
+                                                <div class="mt-2">@ev.Summary</div>
+                                            }
+                                            else if (!string.IsNullOrWhiteSpace(ev.Description))
+                                            {
+                                                <div class="mt-2">@Shorten(ev.Description, 120)</div>
+                                            }
+                                        </div>
+
+                                        <div class="text-end" style="min-width: 160px;">
+                                            <div class="text-muted small">Last updated</div>
+                                            <div>@ev.LastUpdatedOn.ToString("dd/MM/yyyy HH:mm")</div>
+
+                                            <div class="d-grid gap-2 mt-3">
+                                                <button class="btn btn-outline-primary" @onclick="() => GoDetails(ev.EventID)">
+                                                    View
+                                                </button>
+                                                <button class="btn btn-primary" disabled>
+                                                    Register (mock)
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @* ======== MINI GAME POPUP (ONE TIME PER DAY AUTO) ======== *@
+    @if (showGameModal)
+    {
+        <div style="position:fixed; inset:0; background: rgba(0,0,0,0.55); z-index:5000;"
+             @onclick="CloseGame">
+        </div>
+
+        <div class="card shadow"
+             style="position:fixed; z-index:6000; top:12%; left:50%; transform: translateX(-50%); width:min(560px, 92vw);"
+             @onclick:stopPropagation="true">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="mb-1">🎮 Mini Game: Pick a card</h5>
+                        <div class="text-muted small">
+                            Daily pop up: once per day. Plays left today: <span class="fw-semibold">@playsLeft</span>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CloseGame">
+                        ✕
+                    </button>
+                </div>
+
+                <AuthorizeView Roles="Admin">
+                    <div class="mt-3 border rounded p-2 bg-light">
+                        <div class="fw-semibold mb-2">Admin demo controls (this device)</div>
+
+                        <div class="row g-2 align-items-end">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label mb-1">Plays per day</label>
+                                <input type="number" class="form-control" min="1" max="50" @bind="adminPlaysPerDay" />
+                            </div>
+                            <div class="col-12 col-md-6 d-grid">
+                                <button type="button" class="btn btn-outline-primary" @onclick="ApplyPlaysPerDay">
+                                    Apply
+                                </button>
+                            </div>
+
+                            <div class="col-12 d-flex gap-2 flex-wrap">
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetTodayPlays">
+                                    Reset today plays
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetDailyPopupGate">
+                                    Reset daily popup gate (show again)
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" @onclick="ClearAllGameLocalStorage">
+                                    Clear all game storage
+                                </button>
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(adminMsg))
+                            {
+                                <div class="small text-success mt-2">@adminMsg</div>
+                            }
+                        </div>
+                    </div>
+                </AuthorizeView>
+
+                <hr />
+
+                @if (playsLeft <= 0)
+                {
+                    <div class="alert alert-warning mb-0">
+                        You have used all plays for today. Come back tomorrow.
+                    </div>
+                }
+                else if (!gameFinished)
+                {
+                    <div class="text-muted small mb-2">
+                        Pick 1 of 3 cards. One contains the voucher.
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-4 d-grid">
+                            <button type="button" class="btn btn-outline-primary" style="height: 90px;"
+                                    @onclick="() => PickCard(1)">
+                                Card 1
+                            </button>
+                        </div>
+                        <div class="col-4 d-grid">
+                            <button type="button" class="btn btn-outline-primary" style="height: 90px;"
+                                    @onclick="() => PickCard(2)">
+                                Card 2
+                            </button>
+                        </div>
+                        <div class="col-4 d-grid">
+                            <button type="button" class="btn btn-outline-primary" style="height: 90px;"
+                                    @onclick="() => PickCard(3)">
+                                Card 3
+                            </button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert @(gameWon ? "alert-success" : "alert-warning") mb-2">
+                        <div class="fw-semibold">@gameTitle</div>
+                        <div>@gameMessage</div>
+                    </div>
+
+                    @if (gameWon)
+                    {
+                        <div class="border rounded p-3 bg-light">
+                            <div class="text-muted small">Voucher code</div>
+                            <div class="fw-bold fs-4">@voucherCode</div>
+                            <div class="small text-muted">Discount: @voucherPercent% (demo)</div>
+                        </div>
+                    }
+
+                    <div class="d-flex gap-2 mt-3">
+                        <button type="button" class="btn btn-primary" @onclick="ResetGame">
+                            Play again
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CloseGame">
+                            Close
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</CascadingAuthenticationState>
+
+@code {
+    private bool isLoading = true;
+    private List<Event> events = new();
+
+    private string searchText = "";
+    private string modeFilter = "";
+
+    // game state
+    private bool showGameModal;
+    private bool gameFinished;
+    private bool gameWon;
+    private string gameTitle = "";
+    private string gameMessage = "";
+    private string voucherCode = "DEMO10";
+    private int voucherPercent = 10;
+
+    // localStorage keys (per device)
+    private const string KeyLastPopupDate = "erw_game_lastPopup_yyyymmdd";
+    private const string KeyPlaysDate = "erw_game_playsDate_yyyymmdd";
+    private const string KeyPlaysLeft = "erw_game_playsLeft";
+    private const string KeyPlaysPerDay = "erw_game_playsPerDay";
+
+    private int playsLeft = 0;
+    private int playsPerDay = 3;
+
+    // admin controls
+    private int adminPlaysPerDay = 3;
+    private string? adminMsg;
+
+    private IEnumerable<Event> FilteredEvents =>
+        events
+            .Where(e =>
+                e.IsPublished
+                && !e.IsCancelled
+                && (string.IsNullOrWhiteSpace(searchText)
+                    || (e.Title?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+                    || (e.Description?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+                && (string.IsNullOrWhiteSpace(modeFilter)
+                    || (modeFilter == "Online" && e.IsOnline)
+                    || (modeFilter == "Physical" && !e.IsOnline)))
+            .OrderBy(e => e.StartDate);
+
+    protected override async Task OnInitializedAsync()
+    {
+        events = await Db.Events.AsNoTracking().ToListAsync();
+        isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await LoadOrResetDailyPlays();
+
+        // Auto popup: once per day
+        var today = TodayKey();
+        var lastPopup = await JS.InvokeAsync<string?>("localStorage.getItem", KeyLastPopupDate);
+
+        if (!string.Equals(lastPopup, today, StringComparison.Ordinal))
+        {
+            showGameModal = true;
+            await JS.InvokeVoidAsync("localStorage.setItem", KeyLastPopupDate, today);
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadOrResetDailyPlays()
+    {
+        var today = TodayKey();
+
+        // read playsPerDay (or default)
+        var ppStr = await JS.InvokeAsync<string?>("localStorage.getItem", KeyPlaysPerDay);
+        if (!int.TryParse(ppStr, out playsPerDay) || playsPerDay < 1) playsPerDay = 3;
+
+        adminPlaysPerDay = playsPerDay;
+
+        // if stored plays are from different day, reset
+        var playsDate = await JS.InvokeAsync<string?>("localStorage.getItem", KeyPlaysDate);
+
+        if (!string.Equals(playsDate, today, StringComparison.Ordinal))
+        {
+            playsLeft = playsPerDay;
+            await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysDate, today);
+            await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysLeft, playsLeft.ToString());
+            return;
+        }
+
+        // load playsLeft
+        var leftStr = await JS.InvokeAsync<string?>("localStorage.getItem", KeyPlaysLeft);
+        if (!int.TryParse(leftStr, out playsLeft) || playsLeft < 0) playsLeft = playsPerDay;
+    }
+
+    private async Task SavePlaysLeft()
+    {
+        if (playsLeft < 0) playsLeft = 0;
+        await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysLeft, playsLeft.ToString());
+    }
+
+    private static string TodayKey()
+    {
+        var now = DateTime.Now;
+        return $"{now:yyyyMMdd}";
+    }
+
+    private void ClearFilters()
+    {
+        searchText = "";
+        modeFilter = "";
+    }
+
+    private void GoDetails(int id) => Nav.NavigateTo($"/events/details/{id}");
+
+    private async Task OpenGame()
+    {
+        await LoadOrResetDailyPlays();
+        showGameModal = true;
+    }
+
+    private async Task CloseGame()
+    {
+        showGameModal = false;
+        await LoadOrResetDailyPlays();
+    }
+
+    private async Task ResetGame()
+    {
+        await LoadOrResetDailyPlays();
+        if (playsLeft <= 0) return;
+
+        gameFinished = false;
+        gameWon = false;
+        gameTitle = "";
+        gameMessage = "";
+    }
+
+    private async Task PickCard(int picked)
+    {
+        await LoadOrResetDailyPlays();
+        if (playsLeft <= 0) return;
+
+        // consume a play
+        playsLeft--;
+        await SavePlaysLeft();
+
+        var winCard = Random.Shared.Next(1, 4);
+
+        gameFinished = true;
+
+        if (picked == winCard)
+        {
+            gameWon = true;
+            voucherPercent = Random.Shared.Next(10, 31);
+            voucherCode = $"DEMO{voucherPercent}";
+            gameTitle = "You won";
+            gameMessage = "Voucher unlocked for demo.";
+        }
+        else
+        {
+            gameWon = false;
+            gameTitle = "Not this time";
+            gameMessage = "Try again if you still have plays left today.";
+        }
+
+        StateHasChanged();
+    }
+
+    // ===== Admin demo controls (per device) =====
+    private async Task ApplyPlaysPerDay()
+    {
+        adminMsg = null;
+
+        var v = adminPlaysPerDay;
+        if (v < 1) v = 1;
+        if (v > 50) v = 50;
+
+        playsPerDay = v;
+        adminPlaysPerDay = v;
+
+        await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysPerDay, playsPerDay.ToString());
+
+        // if today has no plays record, reset; otherwise keep remaining plays unless admin resets
+        await LoadOrResetDailyPlays();
+
+        adminMsg = $"Plays per day set to {playsPerDay}.";
+    }
+
+    private async Task ResetTodayPlays()
+    {
+        adminMsg = null;
+
+        var today = TodayKey();
+        await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysDate, today);
+
+        playsLeft = playsPerDay;
+        await SavePlaysLeft();
+
+        adminMsg = $"Today plays reset. Plays left: {playsLeft}.";
+        StateHasChanged();
+    }
+
+    private async Task ResetDailyPopupGate()
+    {
+        adminMsg = null;
+
+        // clear last popup date so it will auto show again
+        await JS.InvokeVoidAsync("localStorage.removeItem", KeyLastPopupDate);
+
+        adminMsg = "Daily popup gate reset. Reload page to see auto popup again.";
+    }
+
+    private async Task ClearAllGameLocalStorage()
+    {
+        adminMsg = null;
+
+        await JS.InvokeVoidAsync("localStorage.removeItem", KeyLastPopupDate);
+        await JS.InvokeVoidAsync("localStorage.removeItem", KeyPlaysDate);
+        await JS.InvokeVoidAsync("localStorage.removeItem", KeyPlaysLeft);
+        await JS.InvokeVoidAsync("localStorage.removeItem", KeyPlaysPerDay);
+
+        playsPerDay = 3;
+        adminPlaysPerDay = 3;
+        playsLeft = 0;
+
+        adminMsg = "All game storage cleared. Reload page.";
+    }
+
+    // ===== UI helpers =====
+    private static string Shorten(string? text, int max)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+        text = text.Trim();
+        return text.Length <= max ? text : text.Substring(0, max) + "...";
+    }
+
+    private static bool IsBeginnerFriendly(Event ev)
+    {
+        return string.Equals(ev.EventVibe, "Beginner Friendly", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int FillPercent(Event ev)
+    {
+        if (ev.DemoFillPercent.HasValue)
+        {
+            return Clamp(ev.DemoFillPercent.Value, 0, 100);
+        }
+
+        if (ev.Capacity > 0)
+        {
+            return 35;
+        }
+
+        return 0;
+    }
+
+    private static string PopularityFace(Event ev)
+    {
+        if (ev.Capacity <= 0 && ev.DemoFillPercent.HasValue == false) return "🙂";
+
+        var p = FillPercent(ev);
+        if (p < 20) return "😐";
+        if (p < 50) return "🙂";
+        if (p < 80) return "😄";
+        return "🤩";
+    }
+
+    private static string PopularityLabel(Event ev)
+    {
+        if (ev.Capacity <= 0 && ev.DemoFillPercent.HasValue == false) return "Open";
+
+        var p = FillPercent(ev);
+        if (p < 20) return "New";
+        if (p < 50) return "Gaining";
+        if (p < 80) return "Popular";
+        return "Hot";
+    }
+
+    private static string TicketPriceText(Event ev)
+    {
+        var min = ev.TicketPriceMin;
+        var max = ev.TicketPriceMax;
+        var def = ev.TicketPriceDefault;
+
+        if (min <= 0 && max <= 0 && def <= 0) return "Free";
+        if (min > 0 && max > 0 && min == max) return $"SGD {min:0.00}";
+        if (min > 0 && max > 0 && min != max) return $"From SGD {min:0.00}";
+        if (def > 0) return $"SGD {def:0.00}";
+        if (min > 0) return $"From SGD {min:0.00}";
+        if (max > 0) return $"SGD {max:0.00}";
+        return "Free";
+    }
+
+    private static int Clamp(int v, int min, int max)
+    {
+        if (v < min) return min;
+        if (v > max) return max;
+        return v;
+    }
+}

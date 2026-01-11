@@ -1,0 +1,343 @@
+﻿@page "/events/stats/{id:int}"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using EventRegistrationWebsite.Models
+@using EventRegistrationWebsite.Data
+
+@attribute [Authorize(Roles = "Admin")]
+
+@inject ApplicationDbContext Db
+@inject NavigationManager Nav
+
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+        <h2 class="mb-1">Event stats</h2>
+
+        @if (ev != null)
+        {
+            <div class="text-muted">
+                <span class="fw-semibold">@ev.Title</span>
+                <span class="mx-2">•</span>
+                <span>@($"{ev.StartDate:dd MMM yyyy} - {ev.EndDate:dd MMM yyyy}")</span>
+            </div>
+        }
+    </div>
+
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" @onclick="Back">Back</button>
+    </div>
+</div>
+
+@if (ev == null)
+{
+    <div class="alert alert-warning">
+        Event not found.
+    </div>
+}
+else
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between flex-wrap gap-2">
+                <div>
+                    <div class="text-muted small">Last updated</div>
+                    <div class="fw-semibold">@ev.LastUpdatedOn.ToString("dd/MM/yyyy HH:mm")</div>
+                </div>
+
+                <div class="text-end">
+                    <div class="text-muted small">Ticketing</div>
+                    <div class="fw-semibold">@TicketingLabel</div>
+                </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+                <div class="col-12 col-lg-4">
+                    <div class="border rounded p-3 h-100 bg-light">
+                        <div class="text-muted small">Views today (demo)</div>
+                        <div class="display-6 fw-semibold mb-0">@ViewsToday</div>
+                        <div class="text-muted small mt-1">Based on demo override field</div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-4">
+                    <div class="border rounded p-3 h-100 bg-light">
+                        <div class="text-muted small">Tickets shown</div>
+                        <div class="display-6 fw-semibold mb-0">@TicketsShown</div>
+                        <div class="text-muted small mt-1">@TicketsShownHelp</div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-4">
+                    <div class="border rounded p-3 h-100 bg-light">
+                        <div class="text-muted small">Capacity</div>
+                        <div class="display-6 fw-semibold mb-0">@CapacityText</div>
+                        <div class="text-muted small mt-1">@CapacityHelp</div>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4" />
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <div class="text-muted small mb-1">Occupancy</div>
+                    <div class="fw-semibold">@OccupancyLabel</div>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    @if (!string.IsNullOrWhiteSpace(DemoModeLabel))
+                    {
+                        <span class="badge rounded-pill bg-light text-dark border">@DemoModeLabel</span>
+                    }
+
+                    <span class="badge rounded-pill @BadgeClass">@AvailabilityLabel</span>
+                </div>
+            </div>
+
+            <div class="progress mt-2" style="height:12px;">
+                <div class="progress-bar" role="progressbar" style="width:@($"{FillPct}%")"></div>
+            </div>
+
+            <div class="d-flex justify-content-between text-muted small mt-1">
+                <span>0%</span>
+                <span>@($"{FillPct}%")</span>
+                <span>100%</span>
+            </div>
+
+            <div class="row g-2 mt-3">
+                <div class="col-12 col-md-4">
+                    <div class="border rounded p-3">
+                        <div class="text-muted small">Fill percent</div>
+                        <div class="fw-semibold">@($"{FillPct}%")</div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <div class="border rounded p-3">
+                        <div class="text-muted small">Real tickets sold</div>
+                        <div class="fw-semibold">@TicketsSoldReal</div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <div class="border rounded p-3">
+                        <div class="text-muted small">Displayed source</div>
+                        <div class="fw-semibold">@DisplayedSourceLabel</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+
+    private Event? ev;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ev = await Db.Events.AsNoTracking().FirstOrDefaultAsync(x => x.EventID == id);
+    }
+
+    private void Back() => Nav.NavigateTo("/events");
+
+    private bool TicketingEnabled => ev?.TicketingEnabled ?? false;
+
+    private int CapacityValue => ev?.Capacity ?? 0;
+
+    private int TicketsSoldReal => ev == null ? 0 : Math.Max(0, ev.TicketsSold);
+
+    private int DemoShown
+    {
+        get
+        {
+            if (ev == null) return 0;
+            if (!TicketingEnabled) return 0;
+            if (CapacityValue <= 0) return 0;
+            if (!ev.DemoFillPercent.HasValue) return 0;
+
+            return (int)Math.Round(CapacityValue * (ClampPercent(ev.DemoFillPercent.Value) / 100.0));
+        }
+    }
+
+    // MATCH YOUR /events CARD LOGIC:
+    // - if ticketing off => 0
+    // - if capacity <= 0 => if demo fill exists show percent only, else treat as unlimited (shown 0 here)
+    // - if demo fill exists => shown = capacity * demo%
+    // - else shown = min(real sold, capacity)
+    private int TicketsShown
+    {
+        get
+        {
+            if (ev == null) return 0;
+            if (!TicketingEnabled) return 0;
+
+            if (CapacityValue <= 0)
+            {
+                if (ev.DemoFillPercent.HasValue) return 0;
+                return 0;
+            }
+
+            if (ev.DemoFillPercent.HasValue) return DemoShown;
+
+            var sold = TicketsSoldReal;
+            if (sold > CapacityValue) sold = CapacityValue;
+            return sold;
+        }
+    }
+
+    private int FillPct
+    {
+        get
+        {
+            if (ev == null) return 0;
+            if (!TicketingEnabled) return 0;
+
+            if (CapacityValue <= 0)
+            {
+                if (ev.DemoFillPercent.HasValue) return ClampPercent(ev.DemoFillPercent.Value);
+                return 0;
+            }
+
+            var pct = (int)Math.Round((TicketsShown / (double)CapacityValue) * 100.0);
+            return ClampPercent(pct);
+        }
+    }
+
+    private string CapacityText
+    {
+        get
+        {
+            if (!TicketingEnabled) return "-";
+            if (CapacityValue <= 0)
+            {
+                if (ev != null && ev.DemoFillPercent.HasValue) return $"{ClampPercent(ev.DemoFillPercent.Value)}% shown";
+                return "Unlimited";
+            }
+            return CapacityValue.ToString();
+        }
+    }
+
+    private string OccupancyLabel
+    {
+        get
+        {
+            if (ev == null) return "";
+            if (!TicketingEnabled) return "Ticketing not enabled";
+
+            if (CapacityValue <= 0)
+            {
+                if (ev.DemoFillPercent.HasValue) return $"{ClampPercent(ev.DemoFillPercent.Value)}% shown";
+                return $"{TicketsSoldReal} sold";
+            }
+
+            return $"{TicketsShown} / {CapacityValue}";
+        }
+    }
+
+    private string AvailabilityLabel
+    {
+        get
+        {
+            if (!TicketingEnabled) return "N A";
+            if (CapacityValue <= 0) return "Available";
+
+            if (FillPct >= 100) return "Full";
+            if (FillPct >= 75) return "Selling fast";
+            return "Available";
+        }
+    }
+
+    private string BadgeClass
+    {
+        get
+        {
+            return AvailabilityLabel switch
+            {
+                "Full" => "bg-danger",
+                "Selling fast" => "bg-warning text-dark",
+                "N A" => "bg-secondary",
+                _ => "bg-success"
+            };
+        }
+    }
+
+    private int ViewsToday => ev?.DemoViewsOverride ?? 0;
+
+    private string TicketingLabel => TicketingEnabled ? "Enabled" : "Not enabled";
+
+    private string DemoModeLabel
+    {
+        get
+        {
+            if (ev == null) return "";
+            if (!TicketingEnabled) return "";
+
+            if (ev.DemoFillPercent.HasValue) return $"Demo occupancy: {ClampPercent(ev.DemoFillPercent.Value)}%";
+            return "";
+        }
+    }
+
+    private string DisplayedSourceLabel
+    {
+        get
+        {
+            if (ev == null) return "-";
+            if (!TicketingEnabled) return "Ticketing disabled";
+
+            if (CapacityValue <= 0)
+            {
+                if (ev.DemoFillPercent.HasValue) return "Demo fill percent";
+                return "Unlimited capacity";
+            }
+
+            if (ev.DemoFillPercent.HasValue) return "Demo fill percent";
+            return "Real tickets sold";
+        }
+    }
+
+    private string TicketsShownHelp
+    {
+        get
+        {
+            if (ev == null) return "";
+            if (!TicketingEnabled) return "Ticketing is disabled";
+
+            if (CapacityValue <= 0)
+            {
+                if (ev.DemoFillPercent.HasValue) return "Shown as percentage only";
+                return "Unlimited capacity events do not show seats";
+            }
+
+            if (ev.DemoFillPercent.HasValue) return "Calculated from demo percent and capacity";
+            return "Based on real tickets sold";
+        }
+    }
+
+    private string CapacityHelp
+    {
+        get
+        {
+            if (ev == null) return "";
+            if (!TicketingEnabled) return "Ticketing is disabled";
+
+            if (CapacityValue <= 0)
+            {
+                if (ev.DemoFillPercent.HasValue) return "Capacity is hidden, showing percent only";
+                return "Unlimited seats";
+            }
+
+            return "Total seats available";
+        }
+    }
+
+    private static int ClampPercent(int p)
+    {
+        if (p < 0) return 0;
+        if (p > 100) return 100;
+        return p;
+    }
+}

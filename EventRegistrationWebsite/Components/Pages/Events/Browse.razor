@@ -4,12 +4,10 @@
 @using System
 @using System.Linq
 @using System.Collections.Generic
-
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.JSInterop
-
 @using EventRegistrationWebsite.Data
 @using EventRegistrationWebsite.Models
 
@@ -17,13 +15,60 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 
+<style>
+    .mg-cardBtn {
+        height: 96px;
+        font-weight: 600;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .mg-cardBtn:active {
+            transform: scale(0.98);
+        }
+
+    .mg-reveal {
+        animation: mgPop 260ms ease-out;
+    }
+
+    @@keyframes mgPop {
+        0% {
+            transform: scale(0.98);
+            opacity: 0.85;
+        }
+
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    .mg-wallet {
+        max-height: 140px;
+        overflow-y: auto;
+    }
+
+    .mg-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(0,0,0,0.12);
+        background: #f8f9fa;
+        font-size: 0.85rem;
+    }
+</style>
+
 <CascadingAuthenticationState>
     <div class="d-flex align-items-center justify-content-between mb-3">
         <h2 class="mb-0">Events</h2>
 
-        <button type="button" class="btn btn-outline-primary" @onclick="OpenGame">
-            🎁 Play for voucher
-        </button>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary" @onclick="OpenGame">
+                🎁 Play for voucher
+            </button>
+        </div>
     </div>
 
     <div class="card mb-3">
@@ -45,7 +90,9 @@
                 </div>
 
                 <div class="col-12 col-md-3 d-grid">
-                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">
+                        Clear
+                    </button>
                 </div>
             </div>
         </div>
@@ -95,14 +142,12 @@
                                                     <span class="badge bg-dark">Physical</span>
                                                 }
 
-                                                @if (!string.IsNullOrWhiteSpace(ev.EventVibe))
+                                                @* Availability chip driven by the SAME effective fill logic *@
+                                                @if (ev.TicketingEnabled && !ev.IsCancelled && ev.Capacity > 0)
                                                 {
-                                                    <span class="badge bg-light text-dark border">@ev.EventVibe</span>
-                                                }
-
-                                                @if (IsBeginnerFriendly(ev))
-                                                {
-                                                    <span class="badge bg-success">Beginner Friendly</span>
+                                                    var pct = EffectiveFillPercent(ev);
+                                                    var (label, cls) = AvailabilityBadge(pct);
+                                                    <span class="badge @cls">@label</span>
                                                 }
 
                                                 <span class="badge bg-primary">
@@ -138,6 +183,7 @@
                                                 <button class="btn btn-outline-primary" @onclick="() => GoDetails(ev.EventID)">
                                                     View
                                                 </button>
+
                                                 <button class="btn btn-primary" disabled>
                                                     Register (mock)
                                                 </button>
@@ -154,71 +200,100 @@
         </div>
     }
 
-    @* ======== MINI GAME POPUP (ONE TIME PER DAY AUTO) ======== *@
+    @* ===================== MINI GAME POPUP ===================== *@
     @if (showGameModal)
     {
-        <div style="position:fixed; inset:0; background: rgba(0,0,0,0.55); z-index:5000;"
-             @onclick="CloseGame">
-        </div>
+        @* Backdrop NEVER closes the modal *@
+        <div style="position:fixed; inset:0; background: rgba(0,0,0,0.55); z-index:5000;"></div>
 
         <div class="card shadow"
-             style="position:fixed; z-index:6000; top:12%; left:50%; transform: translateX(-50%); width:min(560px, 92vw);"
+             style="position:fixed; z-index:6000; top:10%; left:50%; transform: translateX(-50%); width:min(600px, 92vw);"
              @onclick:stopPropagation="true">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <h5 class="mb-1">🎮 Mini Game: Pick a card</h5>
                         <div class="text-muted small">
-                            Daily pop up: once per day. Plays left today: <span class="fw-semibold">@playsLeft</span>
+                            Plays left today: <span class="fw-semibold">@playsLeft</span>
+                            <span class="ms-2 mg-pill" title="Current win chance">
+                                🍀 Win chance: @($"{Math.Round(CurrentWinChance() * 100)}%")
+                            </span>
                         </div>
                     </div>
 
+                    @* Only this button can close *@
                     <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CloseGame">
-                        ✕
+                        ✕ Close
                     </button>
                 </div>
 
                 <AuthorizeView Roles="Admin">
-                    <div class="mt-3 border rounded p-2 bg-light">
-                        <div class="fw-semibold mb-2">Admin demo controls (this device)</div>
+                    <div class="mt-3 border rounded p-3 bg-light">
+                        <div class="fw-semibold mb-2">Admin controls (this browser)</div>
 
-                        <div class="row g-2 align-items-end">
+                        <div class="row g-2">
                             <div class="col-12 col-md-6">
-                                <label class="form-label mb-1">Plays per day</label>
-                                <input type="number" class="form-control" min="1" max="50" @bind="adminPlaysPerDay" />
-                            </div>
-                            <div class="col-12 col-md-6 d-grid">
-                                <button type="button" class="btn btn-outline-primary" @onclick="ApplyPlaysPerDay">
-                                    Apply
-                                </button>
-                            </div>
-
-                            <div class="col-12 d-flex gap-2 flex-wrap">
-                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetTodayPlays">
-                                    Reset today plays
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetDailyPopupGate">
-                                    Reset daily popup gate (show again)
-                                </button>
-                                <button type="button" class="btn btn-outline-danger" @onclick="ClearAllGameLocalStorage">
-                                    Clear all game storage
-                                </button>
+                                <label class="form-label">Win chance boost</label>
+                                <input type="range" min="0" max="40" step="5"
+                                       class="form-range"
+                                       @bind="adminWinBoostPct" />
+                                <div class="text-muted small">
+                                    Boost: @adminWinBoostPct% (makes it easier)
+                                </div>
                             </div>
 
-                            @if (!string.IsNullOrWhiteSpace(adminMsg))
-                            {
-                                <div class="small text-success mt-2">@adminMsg</div>
-                            }
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Guaranteed win on 2nd try</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="g2"
+                                           @bind="adminGuaranteeSecondWin" />
+                                    <label class="form-check-label" for="g2">
+                                        If 1st try loses, 2nd try wins
+                                    </label>
+                                </div>
+                            </div>
                         </div>
+
+                        <div class="d-grid gap-2 mt-2">
+                            <button type="button" class="btn btn-outline-danger" @onclick="ResetDailyGameToTwoPlays">
+                                Reset daily mini game back to 2 plays
+                            </button>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(adminMsg))
+                        {
+                            <div class="small text-success mt-2">@adminMsg</div>
+                        }
                     </div>
                 </AuthorizeView>
 
+                @if (voucherWallet.Any())
+                {
+                    <div class="mt-3">
+                        <div class="fw-semibold mb-1">Voucher wallet (this browser)</div>
+                        <div class="mg-wallet border rounded p-2 bg-white">
+                            @foreach (var v in voucherWallet.Take(10))
+                            {
+                                <div class="d-flex justify-content-between align-items-center py-1">
+                                    <div class="fw-semibold">@v.Code</div>
+                                    <div class="text-muted small">@v.Percent% off</div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="text-muted small mt-1">
+                            Stored in localStorage for demo.
+                        </div>
+                    </div>
+                }
+
                 <hr />
 
-                @if (playsLeft <= 0)
+                @* IMPORTANT: even when playsLeft is 0, we DO NOT close. We show state until user presses Close *@
+                @if (playsLeft <= 0 && !gameFinished)
                 {
                     <div class="alert alert-warning mb-0">
-                        You have used all plays for today. Come back tomorrow.
+                        You have used all plays for today. Come back tomorrow or ask admin to reset.
                     </div>
                 }
                 else if (!gameFinished)
@@ -229,35 +304,42 @@
 
                     <div class="row g-2">
                         <div class="col-4 d-grid">
-                            <button type="button" class="btn btn-outline-primary" style="height: 90px;"
+                            <button type="button" class="btn btn-outline-primary mg-cardBtn"
+                                    disabled="@isPicking"
                                     @onclick="() => PickCard(1)">
                                 Card 1
                             </button>
                         </div>
                         <div class="col-4 d-grid">
-                            <button type="button" class="btn btn-outline-primary" style="height: 90px;"
+                            <button type="button" class="btn btn-outline-primary mg-cardBtn"
+                                    disabled="@isPicking"
                                     @onclick="() => PickCard(2)">
                                 Card 2
                             </button>
                         </div>
                         <div class="col-4 d-grid">
-                            <button type="button" class="btn btn-outline-primary" style="height: 90px;"
+                            <button type="button" class="btn btn-outline-primary mg-cardBtn"
+                                    disabled="@isPicking"
                                     @onclick="() => PickCard(3)">
                                 Card 3
                             </button>
                         </div>
                     </div>
+
+                    <div class="text-muted small mt-2">
+                        Tip: Admin can make it easier 😄
+                    </div>
                 }
                 else
                 {
-                    <div class="alert @(gameWon ? "alert-success" : "alert-warning") mb-2">
+                    <div class="alert @(gameWon ? "alert-success" : "alert-warning") mb-2 mg-reveal">
                         <div class="fw-semibold">@gameTitle</div>
                         <div>@gameMessage</div>
                     </div>
 
                     @if (gameWon)
                     {
-                        <div class="border rounded p-3 bg-light">
+                        <div class="border rounded p-3 bg-light mg-reveal">
                             <div class="text-muted small">Voucher code</div>
                             <div class="fw-bold fs-4">@voucherCode</div>
                             <div class="small text-muted">Discount: @voucherPercent% (demo)</div>
@@ -265,12 +347,18 @@
                     }
 
                     <div class="d-flex gap-2 mt-3">
-                        <button type="button" class="btn btn-primary" @onclick="ResetGame">
-                            Play again
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary" @onclick="CloseGame">
-                            Close
-                        </button>
+                        @if (playsLeft > 0)
+                        {
+                            <button type="button" class="btn btn-primary" @onclick="ResetGame">
+                                Play again (left: @playsLeft)
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="text-muted small align-self-center">
+                                No plays left today.
+                            </span>
+                        }
                     </div>
                 }
             </div>
@@ -285,27 +373,31 @@
     private string searchText = "";
     private string modeFilter = "";
 
-    // game state
     private bool showGameModal;
     private bool gameFinished;
     private bool gameWon;
+    private bool isPicking;
+
     private string gameTitle = "";
     private string gameMessage = "";
-    private string voucherCode = "DEMO10";
-    private int voucherPercent = 10;
+    private string voucherCode = "";
+    private int voucherPercent;
 
-    // localStorage keys (per device)
+    private const int PlaysPerDay = 2;
+
     private const string KeyLastPopupDate = "erw_game_lastPopup_yyyymmdd";
     private const string KeyPlaysDate = "erw_game_playsDate_yyyymmdd";
     private const string KeyPlaysLeft = "erw_game_playsLeft";
-    private const string KeyPlaysPerDay = "erw_game_playsPerDay";
+    private const string KeyLostOnceToday = "erw_game_lostOnceToday";
+    private const string KeyVoucherWallet = "erw_game_wallet";
 
-    private int playsLeft = 0;
-    private int playsPerDay = 3;
+    private int playsLeft;
 
-    // admin controls
-    private int adminPlaysPerDay = 3;
     private string? adminMsg;
+    private int adminWinBoostPct = 20;
+    private bool adminGuaranteeSecondWin = true;
+
+    private List<VoucherItem> voucherWallet = new();
 
     private IEnumerable<Event> FilteredEvents =>
         events
@@ -331,8 +423,8 @@
         if (!firstRender) return;
 
         await LoadOrResetDailyPlays();
+        await LoadWallet();
 
-        // Auto popup: once per day
         var today = TodayKey();
         var lastPopup = await JS.InvokeAsync<string?>("localStorage.getItem", KeyLastPopupDate);
 
@@ -340,46 +432,9 @@
         {
             showGameModal = true;
             await JS.InvokeVoidAsync("localStorage.setItem", KeyLastPopupDate, today);
-            StateHasChanged();
+            await ResetGame();
+            await InvokeAsync(StateHasChanged);
         }
-    }
-
-    private async Task LoadOrResetDailyPlays()
-    {
-        var today = TodayKey();
-
-        // read playsPerDay (or default)
-        var ppStr = await JS.InvokeAsync<string?>("localStorage.getItem", KeyPlaysPerDay);
-        if (!int.TryParse(ppStr, out playsPerDay) || playsPerDay < 1) playsPerDay = 3;
-
-        adminPlaysPerDay = playsPerDay;
-
-        // if stored plays are from different day, reset
-        var playsDate = await JS.InvokeAsync<string?>("localStorage.getItem", KeyPlaysDate);
-
-        if (!string.Equals(playsDate, today, StringComparison.Ordinal))
-        {
-            playsLeft = playsPerDay;
-            await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysDate, today);
-            await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysLeft, playsLeft.ToString());
-            return;
-        }
-
-        // load playsLeft
-        var leftStr = await JS.InvokeAsync<string?>("localStorage.getItem", KeyPlaysLeft);
-        if (!int.TryParse(leftStr, out playsLeft) || playsLeft < 0) playsLeft = playsPerDay;
-    }
-
-    private async Task SavePlaysLeft()
-    {
-        if (playsLeft < 0) playsLeft = 0;
-        await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysLeft, playsLeft.ToString());
-    }
-
-    private static string TodayKey()
-    {
-        var now = DateTime.Now;
-        return $"{now:yyyyMMdd}";
     }
 
     private void ClearFilters()
@@ -393,118 +448,178 @@
     private async Task OpenGame()
     {
         await LoadOrResetDailyPlays();
+        await LoadWallet();
         showGameModal = true;
+        await ResetGame();
+        await InvokeAsync(StateHasChanged);
     }
 
-    private async Task CloseGame()
+    private Task CloseGame()
     {
         showGameModal = false;
-        await LoadOrResetDailyPlays();
+        return Task.CompletedTask;
     }
+
+    private async Task LoadOrResetDailyPlays()
+    {
+        var today = TodayKey();
+        var playsDate = await JS.InvokeAsync<string?>("localStorage.getItem", KeyPlaysDate);
+
+        if (!string.Equals(playsDate, today, StringComparison.Ordinal))
+        {
+            playsLeft = PlaysPerDay;
+            await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysDate, today);
+            await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysLeft, playsLeft.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", KeyLostOnceToday, "0");
+            return;
+        }
+
+        var leftStr = await JS.InvokeAsync<string?>("localStorage.getItem", KeyPlaysLeft);
+        if (!int.TryParse(leftStr, out playsLeft) || playsLeft < 0) playsLeft = PlaysPerDay;
+    }
+
+    private Task SavePlaysLeft()
+        => JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysLeft, Math.Max(0, playsLeft).ToString()).AsTask();
+
+    private static string TodayKey() => $"{DateTime.Now:yyyyMMdd}";
 
     private async Task ResetGame()
     {
         await LoadOrResetDailyPlays();
-        if (playsLeft <= 0) return;
-
         gameFinished = false;
         gameWon = false;
+        isPicking = false;
         gameTitle = "";
         gameMessage = "";
+        voucherCode = "";
+        voucherPercent = 0;
     }
+
+    private double CurrentWinChance()
+    {
+        var chance = 0.35;
+        chance += adminWinBoostPct / 100.0;
+        if (chance < 0.05) chance = 0.05;
+        if (chance > 0.95) chance = 0.95;
+        return chance;
+    }
+
+    private async Task<bool> LostOnceToday()
+    {
+        var v = await JS.InvokeAsync<string?>("localStorage.getItem", KeyLostOnceToday);
+        return string.Equals(v, "1", StringComparison.Ordinal);
+    }
+
+    private Task SetLostOnceToday(bool val)
+        => JS.InvokeVoidAsync("localStorage.setItem", KeyLostOnceToday, val ? "1" : "0").AsTask();
 
     private async Task PickCard(int picked)
     {
-        await LoadOrResetDailyPlays();
-        if (playsLeft <= 0) return;
+        if (isPicking) return;
+        isPicking = true;
 
-        // consume a play
-        playsLeft--;
-        await SavePlaysLeft();
-
-        var winCard = Random.Shared.Next(1, 4);
-
-        gameFinished = true;
-
-        if (picked == winCard)
+        try
         {
-            gameWon = true;
-            voucherPercent = Random.Shared.Next(10, 31);
-            voucherCode = $"DEMO{voucherPercent}";
-            gameTitle = "You won";
-            gameMessage = "Voucher unlocked for demo.";
-        }
-        else
-        {
-            gameWon = false;
-            gameTitle = "Not this time";
-            gameMessage = "Try again if you still have plays left today.";
-        }
+            await LoadOrResetDailyPlays();
+            if (playsLeft <= 0) return;
 
-        StateHasChanged();
+            playsLeft--;
+            await SavePlaysLeft();
+
+            var baseChance = CurrentWinChance();
+            var win = Random.Shared.NextDouble() < baseChance;
+
+            // If admin wants guaranteed 2nd try win:
+            if (adminGuaranteeSecondWin)
+            {
+                var lostOnce = await LostOnceToday();
+                if (lostOnce) win = true;
+                else if (!win) await SetLostOnceToday(true);
+            }
+
+            gameFinished = true;
+
+            if (win)
+            {
+                gameWon = true;
+                voucherPercent = Random.Shared.Next(10, 31);
+                voucherCode = $"DEMO{voucherPercent}";
+                gameTitle = "You won 🎉";
+                gameMessage = "Voucher unlocked for demo.";
+                await AddVoucherToWallet(voucherCode, voucherPercent);
+            }
+            else
+            {
+                gameWon = false;
+                gameTitle = "Not this time 😭";
+                gameMessage = "Try again if you still have plays left today.";
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        finally
+        {
+            isPicking = false;
+        }
     }
 
-    // ===== Admin demo controls (per device) =====
-    private async Task ApplyPlaysPerDay()
-    {
-        adminMsg = null;
-
-        var v = adminPlaysPerDay;
-        if (v < 1) v = 1;
-        if (v > 50) v = 50;
-
-        playsPerDay = v;
-        adminPlaysPerDay = v;
-
-        await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysPerDay, playsPerDay.ToString());
-
-        // if today has no plays record, reset; otherwise keep remaining plays unless admin resets
-        await LoadOrResetDailyPlays();
-
-        adminMsg = $"Plays per day set to {playsPerDay}.";
-    }
-
-    private async Task ResetTodayPlays()
+    private async Task ResetDailyGameToTwoPlays()
     {
         adminMsg = null;
 
         var today = TodayKey();
+        playsLeft = PlaysPerDay;
+
         await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysDate, today);
+        await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysLeft, PlaysPerDay.ToString());
+        await JS.InvokeVoidAsync("localStorage.setItem", KeyLostOnceToday, "0");
 
-        playsLeft = playsPerDay;
-        await SavePlaysLeft();
-
-        adminMsg = $"Today plays reset. Plays left: {playsLeft}.";
-        StateHasChanged();
+        adminMsg = "Daily mini game reset to 2 plays for today on this browser.";
+        await ResetGame();
+        await InvokeAsync(StateHasChanged);
     }
 
-    private async Task ResetDailyPopupGate()
+    private async Task LoadWallet()
     {
-        adminMsg = null;
-
-        // clear last popup date so it will auto show again
-        await JS.InvokeVoidAsync("localStorage.removeItem", KeyLastPopupDate);
-
-        adminMsg = "Daily popup gate reset. Reload page to see auto popup again.";
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", KeyVoucherWallet);
+            voucherWallet =
+                string.IsNullOrWhiteSpace(json)
+                ? new List<VoucherItem>()
+                : (System.Text.Json.JsonSerializer.Deserialize<List<VoucherItem>>(json) ?? new List<VoucherItem>());
+        }
+        catch
+        {
+            voucherWallet = new List<VoucherItem>();
+        }
     }
 
-    private async Task ClearAllGameLocalStorage()
+    private Task SaveWallet()
     {
-        adminMsg = null;
-
-        await JS.InvokeVoidAsync("localStorage.removeItem", KeyLastPopupDate);
-        await JS.InvokeVoidAsync("localStorage.removeItem", KeyPlaysDate);
-        await JS.InvokeVoidAsync("localStorage.removeItem", KeyPlaysLeft);
-        await JS.InvokeVoidAsync("localStorage.removeItem", KeyPlaysPerDay);
-
-        playsPerDay = 3;
-        adminPlaysPerDay = 3;
-        playsLeft = 0;
-
-        adminMsg = "All game storage cleared. Reload page.";
+        var json = System.Text.Json.JsonSerializer.Serialize(voucherWallet);
+        return JS.InvokeVoidAsync("localStorage.setItem", KeyVoucherWallet, json).AsTask();
     }
 
-    // ===== UI helpers =====
+    private async Task AddVoucherToWallet(string code, int percent)
+    {
+        await LoadWallet();
+
+        voucherWallet.Insert(0, new VoucherItem { Code = code, Percent = percent, CreatedOn = DateTime.Now });
+
+        if (voucherWallet.Count > 25)
+            voucherWallet = voucherWallet.Take(25).ToList();
+
+        await SaveWallet();
+    }
+
+    public class VoucherItem
+    {
+        public string Code { get; set; } = "";
+        public int Percent { get; set; }
+        public DateTime CreatedOn { get; set; }
+    }
+
     private static string Shorten(string? text, int max)
     {
         if (string.IsNullOrWhiteSpace(text)) return "";
@@ -512,31 +627,33 @@
         return text.Length <= max ? text : text.Substring(0, max) + "...";
     }
 
-    private static bool IsBeginnerFriendly(Event ev)
-    {
-        return string.Equals(ev.EventVibe, "Beginner Friendly", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static int FillPercent(Event ev)
+    @* ====== SHARED “EFFECTIVE” FILL LOGIC (prevents stats mismatch) ====== *@
+    private static int EffectiveFillPercent(Event ev)
     {
         if (ev.DemoFillPercent.HasValue)
-        {
             return Clamp(ev.DemoFillPercent.Value, 0, 100);
-        }
 
-        if (ev.Capacity > 0)
-        {
-            return 35;
-        }
+        if (ev.Capacity <= 0) return 0;
 
-        return 0;
+        var sold = Math.Max(0, ev.TicketsSold);
+        sold = Math.Min(sold, ev.Capacity);
+
+        var pct = (int)Math.Round((sold / (double)ev.Capacity) * 100.0);
+        return Clamp(pct, 0, 100);
     }
+
+    private static (string label, string cls) AvailabilityBadge(int pct)
+    {
+        if (pct >= 100) return ("Full", "bg-danger");
+        if (pct >= 80) return ("Selling fast", "bg-warning text-dark");
+        return ("Available", "bg-success");
+    }
+
+    private static int FillPercentForBadges(Event ev) => EffectiveFillPercent(ev);
 
     private static string PopularityFace(Event ev)
     {
-        if (ev.Capacity <= 0 && ev.DemoFillPercent.HasValue == false) return "🙂";
-
-        var p = FillPercent(ev);
+        var p = FillPercentForBadges(ev);
         if (p < 20) return "😐";
         if (p < 50) return "🙂";
         if (p < 80) return "😄";
@@ -545,9 +662,7 @@
 
     private static string PopularityLabel(Event ev)
     {
-        if (ev.Capacity <= 0 && ev.DemoFillPercent.HasValue == false) return "Open";
-
-        var p = FillPercent(ev);
+        var p = FillPercentForBadges(ev);
         if (p < 20) return "New";
         if (p < 50) return "Gaining";
         if (p < 80) return "Popular";

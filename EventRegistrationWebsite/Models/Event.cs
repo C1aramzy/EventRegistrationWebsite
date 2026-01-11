@@ -44,7 +44,7 @@ namespace EventRegistrationWebsite.Models
 
         public bool TicketingEnabled { get; set; }
         public int Capacity { get; set; } 
-        public int MaxTicketsPerOrder { get; set; } = 10;
+        public int MaxTicketsPerOrder { get; set; } = 4;
 
         public decimal TicketPriceMin { get; set; } = 0;
         public decimal TicketPriceMax { get; set; } = 0;

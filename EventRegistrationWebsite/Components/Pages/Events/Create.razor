@@ -468,9 +468,9 @@
 
             if (eventModel.TicketingEnabled)
             {
-                if (eventModel.MaxTicketsPerOrder <= 0)
+                if (eventModel.MaxTicketsPerOrder <= 0) eventModel.MaxTicketsPerOrder = 4;
                 {
-                    w.Add("Max tickets per order should be at least 1");
+                    w.Add("Max tickets per order is 4");
                 }
 
                 if (eventModel.Capacity < 0)

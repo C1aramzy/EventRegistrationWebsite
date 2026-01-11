@@ -19,6 +19,10 @@
     <h2 class="mb-0">Event Management</h2>
 
     <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary" @onclick="OpenDailyGame">
+            🎁 Mini game
+        </button>
+
         <button class="btn btn-primary" @onclick="GoCreate">
             Create New Event
         </button>
@@ -41,6 +45,7 @@
                     <option value="Ongoing">Ongoing</option>
                     <option value="Completed">Completed</option>
                     <option value="Cancelled">Cancelled</option>
+                    <option value="Upcoming">Upcoming</option>
                 </select>
             </div>
 
@@ -66,25 +71,29 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h5 class="mb-1">Daily Voucher Game</h5>
-                        <div class="text-muted small">Play once per day</div>
+                        <h5 class="mb-1">Daily Voucher Mini game</h5>
+                        <div class="text-muted small">2 plays per day</div>
                     </div>
-                    <button class="btn btn-sm btn-outline-secondary" @onclick="CloseGamePopup">
+                    <button class="btn btn-sm btn-outline-secondary"
+                            @onclick="CloseGamePopup"
+                            @onclick:stopPropagation="true">
                         Close
                     </button>
                 </div>
 
                 <hr />
 
-                @if (playedToday && !gameFinished)
+                @if (playsRemaining <= 0 && !gameFinished)
                 {
                     <div class="alert alert-info mb-3">
-                        You already played today.
+                        You already used both plays today.
                         Come back tomorrow or ask admin to reset.
                     </div>
 
-                    <button class="btn btn-primary w-100" @onclick="CloseGamePopup">
-                        OK
+                    <button class="btn btn-primary w-100"
+                            @onclick="CloseGamePopup"
+                            @onclick:stopPropagation="true">
+                        Ok
                     </button>
                 }
                 else if (!gameFinished)
@@ -96,11 +105,16 @@
                         {
                             <div class="col-4 d-grid">
                                 <button class="btn btn-outline-primary py-4"
-                                        @onclick="() => PickBox(i)">
+                                        @onclick="() => PickBox(i)"
+                                        @onclick:stopPropagation="true">
                                     Box @(i + 1)
                                 </button>
                             </div>
                         }
+                    </div>
+
+                    <div class="text-muted small mt-2">
+                        Plays left today: @playsRemaining
                     </div>
                 }
                 else
@@ -122,51 +136,94 @@
                         </div>
                     }
 
-                    <button class="btn btn-primary w-100 mt-2" @onclick="CloseGamePopup">
-                        Done
-                    </button>
+                    @if (playsRemaining > 0)
+                    {
+                        <button class="btn btn-primary w-100 mt-2"
+                                @onclick="PlayAgain"
+                                @onclick:stopPropagation="true">
+                            Play again (left: @playsRemaining)
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-primary w-100 mt-2"
+                                @onclick="CloseGamePopup"
+                                @onclick:stopPropagation="true">
+                            Done
+                        </button>
+                    }
                 }
             </div>
         </div>
     </div>
 }
 
-@if (showDemoControls)
+@if (showAdminControls)
 {
     <div class="position-fixed top-0 start-0 w-100 h-100"
          style="background: rgba(0,0,0,0.55); z-index:2100;"
-         @onclick="CloseDemoControls">
+         @onclick="CloseAdminControls">
 
         <div class="card shadow-lg position-absolute top-50 start-50 translate-middle"
-             style="width:min(560px,92vw);"
+             style="width:min(640px,92vw);"
              @onclick:stopPropagation="true">
 
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h5 class="mb-1">Demo controls</h5>
-                        <div class="text-muted small">@demoEventTitle</div>
+                        <h5 class="mb-1">Admin controls</h5>
+                        <div class="text-muted small">@adminEventTitle</div>
                     </div>
-                    <button class="btn btn-sm btn-outline-secondary" @onclick="CloseDemoControls">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="CloseAdminControls">
                         Close
                     </button>
                 </div>
 
                 <hr />
 
-                @if (!string.IsNullOrWhiteSpace(demoMessage))
+                @if (!string.IsNullOrWhiteSpace(adminMessage))
                 {
-                    <div class="alert alert-info">@demoMessage</div>
+                    <div class="alert alert-info">@adminMessage</div>
                 }
 
+                <div class="fw-semibold mb-2">Occupancy demo override</div>
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md-8">
+                        <label class="form-label">Demo fullness percent (0 to 100)</label>
+                        <input type="number"
+                               class="form-control"
+                               min="0"
+                               max="100"
+                               value="@adminDemoFillText"
+                               @oninput="OnAdminDemoFillInput" />
+                        <div class="form-text">
+                            Leave blank to use real occupancy.
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4 d-grid gap-2">
+                        <button class="btn btn-outline-primary" @onclick="ApplyAdminDemoFill">
+                            Apply
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="ClearAdminDemoFill">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                <hr />
+
+                <div class="fw-semibold mb-2">Mini game admin</div>
                 <div class="d-grid gap-2">
                     <button class="btn btn-outline-primary" @onclick="OpenDailyGame">
-                        Open daily game
+                        Open mini game
                     </button>
+                    <button class="btn btn-outline-danger" @onclick="AdminResetTodayPlays">
+                        Reset today plays (back to 2)
+                    </button>
+                </div>
 
-                    <button class="btn btn-outline-danger" @onclick="AdminResetGame">
-                        Reset daily game for this browser
-                    </button>
+                <div class="text-muted small mt-2">
+                    This only resets this browser storage.
                 </div>
             </div>
         </div>
@@ -186,16 +243,21 @@ else
     <div class="row g-3">
         @foreach (var ev in FilteredEvents)
         {
+            var fillPct = GetFillPercent(ev);
+            var soldShown = GetSoldShown(ev);
+            var capText = GetCapacityText(ev);
+            var urgency = GetUrgencyLabel(fillPct);
+
             <div class="col-12">
                 <div class="card shadow-sm">
                     <div class="row g-0 align-items-stretch">
-                        <div class="col-5">
+                        <div class="col-12 col-md-5">
                             <img src="@(string.IsNullOrWhiteSpace(ev.BannerImagePath) ? "/images/placeholder-eventPic.png" : ev.BannerImagePath)"
                                  class="img-fluid rounded-start"
                                  style="height:240px;width:100%;object-fit:cover;" />
                         </div>
 
-                        <div class="col-7">
+                        <div class="col-12 col-md-7">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start gap-3">
                                     <div class="flex-grow-1">
@@ -208,58 +270,95 @@ else
                                     <div class="text-end">
                                         <div class="text-muted small">Last updated</div>
                                         <div class="fw-semibold">@($"{ev.LastUpdatedOn:dd/MM/yyyy HH:mm}")</div>
-                                    </div>
 
-                                    <div class="d-flex align-items-start gap-2">
-                                        <button class="btn btn-outline-secondary"
-                                                @onclick="() => ShareEvent(ev.EventID)">
-                                            Share
-                                        </button>
-
-                                        <div class="dropdown">
-                                            <button class="btn btn-outline-secondary dropdown-toggle"
-                                                    data-bs-toggle="dropdown"
-                                                    aria-expanded="false">
-                                                ⋯
+                                        <div class="d-flex justify-content-end gap-2 mt-2">
+                                            <button class="btn btn-outline-secondary btn-sm"
+                                                    @onclick="() => ShareEvent(ev.EventID)">
+                                                Share
                                             </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li>
-                                                    <button class="dropdown-item" @onclick="() => GoDetails(ev.EventID)">
-                                                        View
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item" @onclick="() => GoEdit(ev.EventID)">
-                                                        Edit
-                                                    </button>
-                                                </li>
-                                                <li><hr class="dropdown-divider" /></li>
-                                                <li>
-                                                    <button class="dropdown-item" @onclick="() => GoStats(ev.EventID)">
-                                                        View stats
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item" @onclick="() => OpenDemoControls(ev)">
-                                                        Demo controls
-                                                    </button>
-                                                </li>
-                                            </ul>
+
+                                            <div class="dropdown">
+                                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
+                                                        data-bs-toggle="dropdown"
+                                                        aria-expanded="false">
+                                                    ⋯
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    <li>
+                                                        <button class="dropdown-item" @onclick="() => GoDetails(ev.EventID)">
+                                                            View
+                                                        </button>
+                                                    </li>
+                                                    <li>
+                                                        <button class="dropdown-item" @onclick="() => GoEdit(ev.EventID)">
+                                                            Edit
+                                                        </button>
+                                                    </li>
+                                                    <li><hr class="dropdown-divider" /></li>
+                                                    <li>
+                                                        <button class="dropdown-item" @onclick="() => OpenAdminControls(ev)">
+                                                            Admin controls
+                                                        </button>
+                                                    </li>
+                                                    <li>
+                                                        <button class="dropdown-item" @onclick="() => GoStats(ev.EventID)">
+                                                            View stats
+                                                        </button>
+                                                    </li>
+                                                    <li><hr class="dropdown-divider" /></li>
+                                                    <li>
+                                                        <button class="dropdown-item text-danger" @onclick="() => GoDelete(ev.EventID)">
+                                                            Delete
+                                                        </button>
+                                                    </li>
+                                                </ul>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="mt-3 d-flex flex-wrap gap-2">
-                                    @if (!string.IsNullOrWhiteSpace(ev.ComputedStatus))
+                                    <span class="badge rounded-pill bg-secondary">@ev.ComputedStatus</span>
+
+                                    <span class="badge rounded-pill bg-dark">
+                                        @(ev.IsOnline ? "Online" : "Physical")
+                                    </span>
+
+                                    @if (!string.IsNullOrWhiteSpace(ev.EventVibe))
                                     {
-                                        <span class="badge rounded-pill bg-secondary">@ev.ComputedStatus</span>
+                                        <span class="badge rounded-pill bg-light text-dark border">@ev.EventVibe</span>
+                                    }
+
+                                    @if (!string.IsNullOrWhiteSpace(urgency))
+                                    {
+                                        <span class="badge rounded-pill @(urgency == "Full" ? "bg-danger" : urgency == "Selling fast" ? "bg-warning text-dark" : "bg-success")">
+                                            @urgency
+                                        </span>
+                                    }
+
+                                    @if (ev.DemoViewsOverride.HasValue)
+                                    {
+                                        <span class="badge rounded-pill bg-light text-dark border">
+                                            👀 @ev.DemoViewsOverride.Value today
+                                        </span>
+                                    }
+
+                                    @if (ev.TicketingEnabled)
+                                    {
+                                        <span class="badge rounded-pill bg-success">
+                                            @GetPriceBadge(ev)
+                                        </span>
                                     }
                                 </div>
 
                                 <div class="mt-3">
-                                    <div class="text-muted small mb-1">Capacity</div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="text-muted small">Capacity</div>
+                                        <div class="text-muted small">@capText</div>
+                                    </div>
+
                                     <div class="progress" style="height:10px;">
-                                        <div class="progress-bar" role="progressbar" style="width:0%"></div>
+                                        <div class="progress-bar" role="progressbar" style="width:@($"{fillPct}%")"></div>
                                     </div>
                                 </div>
 
@@ -274,11 +373,13 @@ else
                                     <button class="btn btn-outline-primary" style="min-width:160px;" @onclick="() => GoDetails(ev.EventID)">
                                         View
                                     </button>
+
                                     <button class="btn btn-outline-secondary" style="min-width:160px;" @onclick="() => GoEdit(ev.EventID)">
                                         Edit
                                     </button>
-                                    <button class="btn btn-outline-danger" style="min-width:160px;" @onclick="() => GoDelete(ev.EventID)">
-                                        Delete
+
+                                    <button class="btn btn-primary" style="min-width:160px;" @onclick="() => GoTickets(ev.EventID)">
+                                        Buy tickets
                                     </button>
                                 </div>
                             </div>
@@ -298,14 +399,20 @@ else
     private string statusFilter = "";
 
     private bool showGamePopup;
-    private bool playedToday;
     private bool gameFinished;
     private bool wonVoucher;
     private string voucherCode = "";
 
-    private bool showDemoControls;
-    private string demoEventTitle = "";
-    private string demoMessage = "";
+    private int playsUsedToday = 0;
+    private int playsRemaining => Math.Max(0, 2 - playsUsedToday);
+
+    private bool showAdminControls;
+    private int adminEventId;
+    private string adminEventTitle = "";
+    private string adminDemoFillText = "";
+    private string adminMessage = "";
+
+    private bool firstRenderDone;
 
     private IEnumerable<Event> FilteredEvents =>
         events
@@ -319,8 +426,26 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        events = await Db.Events.AsNoTracking().ToListAsync();
+        events = await Db.Events.ToListAsync();
         isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        firstRenderDone = true;
+
+        await LoadPlaysUsedToday();
+
+        var gateKey = TodayPopupGateKey();
+        var gate = await LocalStore.GetAsync<string>(gateKey);
+        if (!gate.Success || gate.Value != "shown")
+        {
+            await LocalStore.SetAsync(gateKey, "shown");
+            await OpenDailyGame();
+            StateHasChanged();
+        }
     }
 
     private void ClearFilters()
@@ -334,6 +459,7 @@ else
     private void GoEdit(int id) => Nav.NavigateTo($"/events/edit/{id}");
     private void GoDelete(int id) => Nav.NavigateTo($"/events/delete/{id}");
     private void GoStats(int id) => Nav.NavigateTo($"/events/stats/{id}");
+    private void GoTickets(int id) => Nav.NavigateTo($"/events/tickets/{id}");
 
     private async Task ShareEvent(int id)
     {
@@ -349,60 +475,236 @@ else
         }
     }
 
-    private void OpenDemoControls(Event ev)
+    private void CloseGamePopup()
     {
-        demoEventTitle = ev.Title ?? "";
-        demoMessage = "";
-        showDemoControls = true;
-    }
-
-    private void CloseDemoControls()
-    {
-        showDemoControls = false;
-        demoMessage = "";
+        showGamePopup = false;
+        gameFinished = false;
+        wonVoucher = false;
+        voucherCode = "";
     }
 
     private async Task OpenDailyGame()
     {
-        playedToday = await HasPlayedToday();
+        if (!firstRenderDone) return;
+
+        await LoadPlaysUsedToday();
+
         gameFinished = false;
         wonVoucher = false;
         voucherCode = "";
         showGamePopup = true;
     }
 
-    private void CloseGamePopup()
+    private async Task LoadPlaysUsedToday()
     {
-        showGamePopup = false;
+        var stored = await LocalStore.GetAsync<int>(TodayPlaysKey());
+        if (stored.Success)
+        {
+            playsUsedToday = stored.Value;
+        }
+        else
+        {
+            playsUsedToday = 0;
+        }
+
+        if (playsUsedToday < 0) playsUsedToday = 0;
+        if (playsUsedToday > 2) playsUsedToday = 2;
+    }
+
+    private async Task SavePlaysUsedToday()
+    {
+        if (playsUsedToday < 0) playsUsedToday = 0;
+        if (playsUsedToday > 2) playsUsedToday = 2;
+
+        await LocalStore.SetAsync(TodayPlaysKey(), playsUsedToday);
     }
 
     private async Task PickBox(int index)
     {
+        if (playsRemaining <= 0) return;
         if (gameFinished) return;
 
-        var winBox = DateTime.Now.Millisecond % 3;
+        var winBox = DateTime.Now.Millisecond % 7;
         wonVoucher = index == winBox;
 
         if (wonVoucher)
+        {
             voucherCode = $"VOUCHER{DateTime.Now:HHmmss}";
+        }
 
         gameFinished = true;
-        playedToday = true;
+        playsUsedToday += 1;
+        await SavePlaysUsedToday();
 
-        await LocalStore.SetAsync("daily_game_played", DateTime.Today.ToString("yyyyMMdd"));
+        // IMPORTANT FIX:
+        // Do NOT auto close the popup when playsRemaining becomes 0.
+        // User must close it manually to see win or lose.
+
+        StateHasChanged();
     }
 
-    private async Task<bool> HasPlayedToday()
+    private async Task PlayAgain()
     {
-        var key = DateTime.Today.ToString("yyyyMMdd");
-        var stored = await LocalStore.GetAsync<string>("daily_game_played");
-        return stored.Success && stored.Value == key;
+        if (playsRemaining <= 0)
+        {
+            CloseGamePopup();
+            return;
+        }
+
+        gameFinished = false;
+        wonVoucher = false;
+        voucherCode = "";
+        await Task.CompletedTask;
     }
 
-    private async Task AdminResetGame()
+    private void OpenAdminControls(Event ev)
     {
-        await LocalStore.DeleteAsync("daily_game_played");
-        playedToday = false;
-        demoMessage = "Daily game reset for this browser.";
+        adminEventId = ev.EventID;
+        adminEventTitle = ev.Title ?? "";
+        adminMessage = "";
+
+        adminDemoFillText = ev.DemoFillPercent.HasValue ? ev.DemoFillPercent.Value.ToString() : "";
+        showAdminControls = true;
+    }
+
+    private void CloseAdminControls()
+    {
+        showAdminControls = false;
+        adminMessage = "";
+    }
+
+    private void OnAdminDemoFillInput(ChangeEventArgs e)
+    {
+        adminDemoFillText = e.Value?.ToString() ?? "";
+    }
+
+    private async Task ApplyAdminDemoFill()
+    {
+        var ev = events.FirstOrDefault(x => x.EventID == adminEventId);
+        if (ev == null) return;
+
+        if (string.IsNullOrWhiteSpace(adminDemoFillText))
+        {
+            ev.DemoFillPercent = null;
+        }
+        else if (int.TryParse(adminDemoFillText.Trim(), out var v))
+        {
+            v = ClampPercent(v);
+            ev.DemoFillPercent = v;
+            adminDemoFillText = v.ToString();
+        }
+        else
+        {
+            adminMessage = "Please enter a valid number from 0 to 100";
+            return;
+        }
+
+        await Db.SaveChangesAsync();
+        adminMessage = "Updated";
+        StateHasChanged();
+    }
+
+    private async Task ClearAdminDemoFill()
+    {
+        var ev = events.FirstOrDefault(x => x.EventID == adminEventId);
+        if (ev == null) return;
+
+        ev.DemoFillPercent = null;
+        adminDemoFillText = "";
+        await Db.SaveChangesAsync();
+
+        adminMessage = "Cleared";
+        StateHasChanged();
+    }
+
+    private async Task AdminResetTodayPlays()
+    {
+        playsUsedToday = 0;
+        await SavePlaysUsedToday();
+        adminMessage = "Reset to 2 plays for today";
+        StateHasChanged();
+    }
+
+    private static int ClampPercent(int p)
+    {
+        if (p < 0) return 0;
+        if (p > 100) return 100;
+        return p;
+    }
+
+    private static string TodayPlaysKey()
+    {
+        return $"mini_game_plays_used_{DateTime.Today:yyyyMMdd}";
+    }
+
+    private static string TodayPopupGateKey()
+    {
+        return $"mini_game_popup_shown_{DateTime.Today:yyyyMMdd}";
+    }
+
+    private int GetFillPercent(Event ev)
+    {
+        if (!ev.TicketingEnabled) return 0;
+
+        if (ev.Capacity <= 0)
+        {
+            if (ev.DemoFillPercent.HasValue) return ClampPercent(ev.DemoFillPercent.Value);
+            return 0;
+        }
+
+        if (ev.DemoFillPercent.HasValue) return ClampPercent(ev.DemoFillPercent.Value);
+
+        var sold = Math.Max(0, ev.TicketsSold);
+        if (sold > ev.Capacity) sold = ev.Capacity;
+
+        var pct = (int)Math.Round((sold / (double)ev.Capacity) * 100.0);
+        return ClampPercent(pct);
+    }
+
+    private int GetSoldShown(Event ev)
+    {
+        if (!ev.TicketingEnabled) return 0;
+        if (ev.Capacity <= 0) return 0;
+
+        var pct = GetFillPercent(ev);
+        var shown = (int)Math.Round(ev.Capacity * (pct / 100.0));
+        if (shown < 0) shown = 0;
+        if (shown > ev.Capacity) shown = ev.Capacity;
+        return shown;
+    }
+
+    private string GetCapacityText(Event ev)
+    {
+        if (!ev.TicketingEnabled) return "-";
+
+        if (ev.Capacity <= 0)
+        {
+            if (ev.DemoFillPercent.HasValue) return $"{GetFillPercent(ev)}% shown";
+            return "Unlimited";
+        }
+
+        var shown = GetSoldShown(ev);
+        return $"{shown} / {ev.Capacity} seats shown";
+    }
+
+    private static string GetUrgencyLabel(int fillPct)
+    {
+        if (fillPct >= 100) return "Full";
+        if (fillPct >= 75) return "Selling fast";
+        return "Available";
+    }
+
+    private static string GetPriceBadge(Event ev)
+    {
+        if (!ev.TicketingEnabled) return "";
+
+        var min = ev.TicketPriceMin;
+        var max = ev.TicketPriceMax;
+
+        if (min <= 0 && max <= 0) return "Free";
+        if (min > 0 && max > 0 && min == max) return $"SGD {min:0.00}";
+        if (min > 0) return $"From SGD {min:0.00}";
+        if (max > 0) return $"SGD {max:0.00}";
+        return "Free";
     }
 }

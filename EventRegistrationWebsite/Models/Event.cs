@@ -59,6 +59,8 @@ namespace EventRegistrationWebsite.Models
         public DateTime? EarlyBirdEndsOn { get; set; }
         public decimal? EarlyBirdPrice { get; set; }
 
+        public int TotalViews { get; set; }
+
         [NotMapped]
         public string ComputedStatus
         {

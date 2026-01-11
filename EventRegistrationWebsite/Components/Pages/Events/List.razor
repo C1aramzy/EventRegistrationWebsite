@@ -60,43 +60,76 @@
 
 @if (showGamePopup)
 {
+    @* Backdrop does NOT close the game *@
     <div class="position-fixed top-0 start-0 w-100 h-100"
-         style="background: rgba(0,0,0,0.55); z-index:2000;"
-         @onclick="CloseGamePopup">
+         style="background: rgba(0,0,0,0.55); z-index:2000;">
+    </div>
 
-        <div class="card shadow-lg position-absolute top-50 start-50 translate-middle"
-             style="width:min(520px,92vw);"
-             @onclick:stopPropagation="true">
+    <div class="card shadow-lg position-fixed top-50 start-50 translate-middle"
+         style="width:min(520px,92vw); z-index:2001;"
+         @onclick:stopPropagation="true">
 
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h5 class="mb-1">Daily Voucher Mini game</h5>
-                        <div class="text-muted small">2 plays per day</div>
-                    </div>
-                    <button class="btn btn-sm btn-outline-secondary"
-                            @onclick="CloseGamePopup"
-                            @onclick:stopPropagation="true">
-                        Close
-                    </button>
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h5 class="mb-1">Daily Voucher Mini game</h5>
+                    <div class="text-muted small">2 plays per day</div>
                 </div>
+                <button class="btn btn-sm btn-outline-secondary"
+                        @onclick="CloseGamePopup">
+                    Close
+                </button>
+            </div>
 
-                <hr />
+            <hr />
 
-                @if (playsRemaining <= 0 && !gameFinished)
+            @* If user just played, always show result first *@
+            @if (gameFinished)
+            {
+                @if (wonVoucher)
                 {
-                    <div class="alert alert-info mb-3">
+                    <div class="alert alert-success">
+                        🎉 You won a voucher
+                    </div>
+                    <div class="fw-semibold">
+                        Code:
+                        <span class="font-monospace">@voucherCode</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-warning">
+                        Not this time
+                    </div>
+                }
+
+                <div class="d-flex gap-2 mt-2">
+                    @if (playsRemaining > 0)
+                    {
+                        <button class="btn btn-primary w-100"
+                                @onclick="PlayAgain">
+                            Play again (left: @playsRemaining)
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-outline-secondary w-100"
+                                @onclick="CloseGamePopup">
+                            Close
+                        </button>
+                    }
+                </div>
+            }
+            else
+            {
+                @if (playsRemaining <= 0)
+                {
+                    <div class="alert alert-info mb-0">
                         You already used both plays today.
                         Come back tomorrow or ask admin to reset.
                     </div>
-
-                    <button class="btn btn-primary w-100"
-                            @onclick="CloseGamePopup"
-                            @onclick:stopPropagation="true">
-                        Ok
-                    </button>
                 }
-                else if (!gameFinished)
+                else
                 {
                     <div class="fw-semibold mb-2">Pick one box</div>
 
@@ -117,43 +150,7 @@
                         Plays left today: @playsRemaining
                     </div>
                 }
-                else
-                {
-                    @if (wonVoucher)
-                    {
-                        <div class="alert alert-success">
-                            🎉 You won a voucher
-                        </div>
-                        <div class="fw-semibold">
-                            Code:
-                            <span class="font-monospace">@voucherCode</span>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="alert alert-warning">
-                            Not this time
-                        </div>
-                    }
-
-                    @if (playsRemaining > 0)
-                    {
-                        <button class="btn btn-primary w-100 mt-2"
-                                @onclick="PlayAgain"
-                                @onclick:stopPropagation="true">
-                            Play again (left: @playsRemaining)
-                        </button>
-                    }
-                    else
-                    {
-                        <button class="btn btn-primary w-100 mt-2"
-                                @onclick="CloseGamePopup"
-                                @onclick:stopPropagation="true">
-                            Done
-                        </button>
-                    }
-                }
-            </div>
+            }
         </div>
     </div>
 }
@@ -244,7 +241,6 @@ else
         @foreach (var ev in FilteredEvents)
         {
             var fillPct = GetFillPercent(ev);
-            var soldShown = GetSoldShown(ev);
             var capText = GetCapacityText(ev);
             var urgency = GetUrgencyLabel(fillPct);
 
@@ -264,6 +260,10 @@ else
                                         <h5 class="mb-1 fw-semibold">@ev.Title</h5>
                                         <div class="text-muted">
                                             @($"{ev.StartDate:dd MMM yyyy} - {ev.EndDate:dd MMM yyyy}")
+                                            @if (ev.StartTime.HasValue || ev.EndTime.HasValue)
+                                            {
+                                                <span> • @FormatTimeRange(ev.StartTime, ev.EndTime)</span>
+                                            }
                                         </div>
                                     </div>
 
@@ -336,13 +336,6 @@ else
                                         </span>
                                     }
 
-                                    @if (ev.DemoViewsOverride.HasValue)
-                                    {
-                                        <span class="badge rounded-pill bg-light text-dark border">
-                                            👀 @ev.DemoViewsOverride.Value today
-                                        </span>
-                                    }
-
                                     @if (ev.TicketingEnabled)
                                     {
                                         <span class="badge rounded-pill bg-success">
@@ -411,6 +404,12 @@ else
     private string adminEventTitle = "";
     private string adminDemoFillText = "";
     private string adminMessage = "";
+
+    private string lastVoucherCodeToday = "";
+    private bool lastWonToday => !string.IsNullOrWhiteSpace(lastVoucherCodeToday);
+
+    private static string TodayResultKey() => $"mini_game_result_{DateTime.Today:yyyyMMdd}";
+
 
     private bool firstRenderDone;
 
@@ -489,27 +488,34 @@ else
 
         await LoadPlaysUsedToday();
 
+        showGamePopup = true;
+
+        if (playsRemaining <= 0 && lastWonToday)
+        {
+            gameFinished = true;
+            wonVoucher = true;
+            voucherCode = lastVoucherCodeToday;
+            return;
+        }
+
         gameFinished = false;
         wonVoucher = false;
         voucherCode = "";
-        showGamePopup = true;
     }
+
 
     private async Task LoadPlaysUsedToday()
     {
         var stored = await LocalStore.GetAsync<int>(TodayPlaysKey());
-        if (stored.Success)
-        {
-            playsUsedToday = stored.Value;
-        }
-        else
-        {
-            playsUsedToday = 0;
-        }
+        playsUsedToday = stored.Success ? stored.Value : 0;
 
         if (playsUsedToday < 0) playsUsedToday = 0;
         if (playsUsedToday > 2) playsUsedToday = 2;
+
+        var res = await LocalStore.GetAsync<string>(TodayResultKey());
+        lastVoucherCodeToday = res.Success ? (res.Value ?? "") : "";
     }
+
 
     private async Task SavePlaysUsedToday()
     {
@@ -524,37 +530,48 @@ else
         if (playsRemaining <= 0) return;
         if (gameFinished) return;
 
-        var winBox = DateTime.Now.Millisecond % 7;
-        wonVoucher = index == winBox;
+        // playsUsedToday BEFORE increment tells us which attempt this is
+        var attemptNumber = playsUsedToday + 1;
+
+        // ✅ Guarantee 2nd attempt is always a win
+        if (attemptNumber == 2)
+        {
+            wonVoucher = true;
+        }
+        else
+        {
+            // keep your random behaviour for attempt 1
+            var winBox = DateTime.Now.Millisecond % 3;
+            wonVoucher = index == winBox;
+        }
 
         if (wonVoucher)
         {
             voucherCode = $"VOUCHER{DateTime.Now:HHmmss}";
+            await LocalStore.SetAsync(TodayResultKey(), voucherCode);
+        }
+        else
+        {
+            await LocalStore.SetAsync(TodayResultKey(), "");
         }
 
         gameFinished = true;
+
+        // consume a play
         playsUsedToday += 1;
         await SavePlaysUsedToday();
-
-        // IMPORTANT FIX:
-        // Do NOT auto close the popup when playsRemaining becomes 0.
-        // User must close it manually to see win or lose.
 
         StateHasChanged();
     }
 
-    private async Task PlayAgain()
+    private Task PlayAgain()
     {
-        if (playsRemaining <= 0)
-        {
-            CloseGamePopup();
-            return;
-        }
+        if (playsRemaining <= 0) return Task.CompletedTask;
 
         gameFinished = false;
         wonVoucher = false;
         voucherCode = "";
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     private void OpenAdminControls(Event ev)
@@ -621,9 +638,11 @@ else
     {
         playsUsedToday = 0;
         await SavePlaysUsedToday();
+        await LocalStore.DeleteAsync(TodayResultKey());
         adminMessage = "Reset to 2 plays for today";
         StateHasChanged();
     }
+
 
     private static int ClampPercent(int p)
     {
@@ -632,15 +651,8 @@ else
         return p;
     }
 
-    private static string TodayPlaysKey()
-    {
-        return $"mini_game_plays_used_{DateTime.Today:yyyyMMdd}";
-    }
-
-    private static string TodayPopupGateKey()
-    {
-        return $"mini_game_popup_shown_{DateTime.Today:yyyyMMdd}";
-    }
+    private static string TodayPlaysKey() => $"mini_game_plays_used_{DateTime.Today:yyyyMMdd}";
+    private static string TodayPopupGateKey() => $"mini_game_popup_shown_{DateTime.Today:yyyyMMdd}";
 
     private int GetFillPercent(Event ev)
     {
@@ -675,7 +687,7 @@ else
 
     private string GetCapacityText(Event ev)
     {
-        if (!ev.TicketingEnabled) return "-";
+        if (!ev.TicketingEnabled) return "—";
 
         if (ev.Capacity <= 0)
         {
@@ -706,5 +718,15 @@ else
         if (min > 0) return $"From SGD {min:0.00}";
         if (max > 0) return $"SGD {max:0.00}";
         return "Free";
+    }
+
+    private static string FormatTimeRange(TimeSpan? start, TimeSpan? end)
+    {
+        var s = start.HasValue ? DateTime.Today.Add(start.Value).ToString("HH:mm") : "";
+        var e = end.HasValue ? DateTime.Today.Add(end.Value).ToString("HH:mm") : "";
+        if (!string.IsNullOrWhiteSpace(s) && !string.IsNullOrWhiteSpace(e)) return $"{s} to {e}";
+        if (!string.IsNullOrWhiteSpace(s)) return $"From {s}";
+        if (!string.IsNullOrWhiteSpace(e)) return $"Until {e}";
+        return "";
     }
 }

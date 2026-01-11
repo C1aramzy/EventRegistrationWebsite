@@ -4,6 +4,7 @@ using EventRegistrationWebsite.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EventRegistrationWebsite.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260111150328_AddEventViewTracking")]
+    partial class AddEventViewTracking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -197,6 +200,12 @@ namespace EventRegistrationWebsite.Migrations
 
                     b.Property<string>("VenueName")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ViewsLastUpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ViewsToday")
+                        .HasColumnType("int");
 
                     b.HasKey("EventID");
 

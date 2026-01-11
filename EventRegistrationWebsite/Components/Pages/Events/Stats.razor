@@ -1,8 +1,10 @@
 ﻿@page "/events/stats/{id:int}"
 @rendermode InteractiveServer
 
+@using System.Text
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
 @using EventRegistrationWebsite.Models
 @using EventRegistrationWebsite.Data
 
@@ -10,37 +12,61 @@
 
 @inject ApplicationDbContext Db
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
     <div>
-        <h2 class="mb-1">Event stats</h2>
-
         @if (ev != null)
         {
+            <h2 class="mb-1">@ev.Title</h2>
             <div class="text-muted">
-                <span class="fw-semibold">@ev.Title</span>
-                <span class="mx-2">•</span>
-                <span>@($"{ev.StartDate:dd MMM yyyy} - {ev.EndDate:dd MMM yyyy}")</span>
+                Event stats • @($"{ev.StartDate:dd MMM yyyy} to {ev.EndDate:dd MMM yyyy}")
+                @if (ev.StartTime.HasValue || ev.EndTime.HasValue)
+                {
+                    <span> • @FormatTimeRange(ev.StartTime, ev.EndTime)</span>
+                }
             </div>
+        }
+        else
+        {
+            <h2 class="mb-1">Event stats</h2>
         }
     </div>
 
     <div class="d-flex gap-2">
         <button class="btn btn-outline-secondary" @onclick="Back">Back</button>
+        <button class="btn btn-outline-primary" @onclick="Refresh" disabled="@isLoading">Refresh</button>
+        <button class="btn btn-outline-secondary" @onclick="CopyLink" disabled="@isLoading">Copy link</button>
+        <button class="btn btn-primary" @onclick="ExportCsv" disabled="@(!CanExport)">Export CSV</button>
     </div>
 </div>
 
-@if (ev == null)
+@if (isLoading)
 {
-    <div class="alert alert-warning">
-        Event not found.
-    </div>
+    <div class="text-muted">Loading…</div>
+}
+else if (ev == null)
+{
+    <div class="alert alert-warning">Event not found</div>
 }
 else
 {
-    <div class="card mb-3">
+    @if (Warnings.Count > 0)
+    {
+        <div class="alert alert-warning">
+            <div class="fw-semibold mb-1">Notes</div>
+            <ul class="mb-0">
+                @foreach (var w in Warnings)
+                {
+                    <li>@w</li>
+                }
+            </ul>
+        </div>
+    }
+
+    <div class="card shadow-sm mb-3">
         <div class="card-body">
-            <div class="d-flex justify-content-between flex-wrap gap-2">
+            <div class="d-flex justify-content-between flex-wrap gap-3 mb-3">
                 <div>
                     <div class="text-muted small">Last updated</div>
                     <div class="fw-semibold">@ev.LastUpdatedOn.ToString("dd/MM/yyyy HH:mm")</div>
@@ -52,16 +78,16 @@ else
                 </div>
             </div>
 
-            <div class="row g-3 mt-2">
-                <div class="col-12 col-lg-4">
+            <div class="row g-3">
+                <div class="col-12 col-lg-3">
                     <div class="border rounded p-3 h-100 bg-light">
-                        <div class="text-muted small">Views today (demo)</div>
-                        <div class="display-6 fw-semibold mb-0">@ViewsToday</div>
-                        <div class="text-muted small mt-1">Based on demo override field</div>
+                        <div class="text-muted small">Total views</div>
+                        <div class="display-6 fw-semibold mb-0">@TotalViews</div>
+                        <div class="text-muted small mt-1">Counted when View is clicked</div>
                     </div>
                 </div>
 
-                <div class="col-12 col-lg-4">
+                <div class="col-12 col-lg-3">
                     <div class="border rounded p-3 h-100 bg-light">
                         <div class="text-muted small">Tickets shown</div>
                         <div class="display-6 fw-semibold mb-0">@TicketsShown</div>
@@ -69,29 +95,36 @@ else
                     </div>
                 </div>
 
-                <div class="col-12 col-lg-4">
+                <div class="col-12 col-lg-3">
                     <div class="border rounded p-3 h-100 bg-light">
                         <div class="text-muted small">Capacity</div>
-                        <div class="display-6 fw-semibold mb-0">@CapacityText</div>
+                        <div class="display-6 fw-semibold mb-0">@CapacityMain</div>
                         <div class="text-muted small mt-1">@CapacityHelp</div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-3">
+                    <div class="border rounded p-3 h-100 bg-light">
+                        <div class="text-muted small">Estimated revenue</div>
+                        <div class="display-6 fw-semibold mb-0">@EstimatedRevenueText</div>
+                        <div class="text-muted small mt-1">@EstimatedRevenueHelp</div>
                     </div>
                 </div>
             </div>
 
             <hr class="my-4" />
 
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
                 <div>
-                    <div class="text-muted small mb-1">Occupancy</div>
-                    <div class="fw-semibold">@OccupancyLabel</div>
+                    <div class="text-muted small">Occupancy</div>
+                    <div class="fs-4 fw-semibold">@OccupancyLabel</div>
                 </div>
 
                 <div class="d-flex align-items-center gap-2">
-                    @if (!string.IsNullOrWhiteSpace(DemoModeLabel))
+                    @if (!string.IsNullOrWhiteSpace(DemoBadge))
                     {
-                        <span class="badge rounded-pill bg-light text-dark border">@DemoModeLabel</span>
+                        <span class="badge rounded-pill bg-light text-dark border">@DemoBadge</span>
                     }
-
                     <span class="badge rounded-pill @BadgeClass">@AvailabilityLabel</span>
                 </div>
             </div>
@@ -102,7 +135,7 @@ else
 
             <div class="d-flex justify-content-between text-muted small mt-1">
                 <span>0%</span>
-                <span>@($"{FillPct}%")</span>
+                <span class="fw-semibold">@($"{FillPct}%")</span>
                 <span>100%</span>
             </div>
 
@@ -136,19 +169,36 @@ else
     [Parameter] public int id { get; set; }
 
     private Event? ev;
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
-        ev = await Db.Events.AsNoTracking().FirstOrDefaultAsync(x => x.EventID == id);
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        isLoading = true;
+
+        ev = await Db.Events
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.EventID == id);
+
+        isLoading = false;
+    }
+
+    private async Task Refresh()
+    {
+        await Load();
+        StateHasChanged();
     }
 
     private void Back() => Nav.NavigateTo("/events");
 
     private bool TicketingEnabled => ev?.TicketingEnabled ?? false;
-
     private int CapacityValue => ev?.Capacity ?? 0;
-
     private int TicketsSoldReal => ev == null ? 0 : Math.Max(0, ev.TicketsSold);
+    private int TotalViews => ev?.TotalViews ?? 0;
 
     private int DemoShown
     {
@@ -163,11 +213,6 @@ else
         }
     }
 
-    // MATCH YOUR /events CARD LOGIC:
-    // - if ticketing off => 0
-    // - if capacity <= 0 => if demo fill exists show percent only, else treat as unlimited (shown 0 here)
-    // - if demo fill exists => shown = capacity * demo%
-    // - else shown = min(real sold, capacity)
     private int TicketsShown
     {
         get
@@ -175,11 +220,7 @@ else
             if (ev == null) return 0;
             if (!TicketingEnabled) return 0;
 
-            if (CapacityValue <= 0)
-            {
-                if (ev.DemoFillPercent.HasValue) return 0;
-                return 0;
-            }
+            if (CapacityValue <= 0) return 0;
 
             if (ev.DemoFillPercent.HasValue) return DemoShown;
 
@@ -207,17 +248,36 @@ else
         }
     }
 
-    private string CapacityText
+    private string TicketingLabel => TicketingEnabled ? "Enabled" : "Not enabled";
+
+    private string CapacityMain
     {
         get
         {
-            if (!TicketingEnabled) return "-";
+            if (!TicketingEnabled) return "—";
             if (CapacityValue <= 0)
             {
-                if (ev != null && ev.DemoFillPercent.HasValue) return $"{ClampPercent(ev.DemoFillPercent.Value)}% shown";
+                if (ev != null && ev.DemoFillPercent.HasValue) return $"{ClampPercent(ev.DemoFillPercent.Value)}%";
                 return "Unlimited";
             }
             return CapacityValue.ToString();
+        }
+    }
+
+    private string CapacityHelp
+    {
+        get
+        {
+            if (ev == null) return "";
+            if (!TicketingEnabled) return "Ticketing is disabled";
+
+            if (CapacityValue <= 0)
+            {
+                if (ev.DemoFillPercent.HasValue) return "Capacity hidden, percent shown";
+                return "No seat limit";
+            }
+
+            return "Total seats available";
         }
     }
 
@@ -246,6 +306,7 @@ else
             if (CapacityValue <= 0) return "Available";
 
             if (FillPct >= 100) return "Full";
+            if (FillPct >= 95) return "Almost full";
             if (FillPct >= 75) return "Selling fast";
             return "Available";
         }
@@ -258,6 +319,7 @@ else
             return AvailabilityLabel switch
             {
                 "Full" => "bg-danger",
+                "Almost full" => "bg-danger",
                 "Selling fast" => "bg-warning text-dark",
                 "N A" => "bg-secondary",
                 _ => "bg-success"
@@ -265,19 +327,14 @@ else
         }
     }
 
-    private int ViewsToday => ev?.DemoViewsOverride ?? 0;
-
-    private string TicketingLabel => TicketingEnabled ? "Enabled" : "Not enabled";
-
-    private string DemoModeLabel
+    private string DemoBadge
     {
         get
         {
             if (ev == null) return "";
             if (!TicketingEnabled) return "";
-
-            if (ev.DemoFillPercent.HasValue) return $"Demo occupancy: {ClampPercent(ev.DemoFillPercent.Value)}%";
-            return "";
+            if (!ev.DemoFillPercent.HasValue) return "";
+            return $"Demo occupancy: {ClampPercent(ev.DemoFillPercent.Value)}%";
         }
     }
 
@@ -285,7 +342,7 @@ else
     {
         get
         {
-            if (ev == null) return "-";
+            if (ev == null) return "—";
             if (!TicketingEnabled) return "Ticketing disabled";
 
             if (CapacityValue <= 0)
@@ -306,32 +363,145 @@ else
             if (ev == null) return "";
             if (!TicketingEnabled) return "Ticketing is disabled";
 
-            if (CapacityValue <= 0)
-            {
-                if (ev.DemoFillPercent.HasValue) return "Shown as percentage only";
-                return "Unlimited capacity events do not show seats";
-            }
-
+            if (CapacityValue <= 0) return "Seats are not shown for unlimited";
             if (ev.DemoFillPercent.HasValue) return "Calculated from demo percent and capacity";
+
             return "Based on real tickets sold";
         }
     }
 
-    private string CapacityHelp
+    private bool IsFreeEvent
     {
         get
         {
-            if (ev == null) return "";
-            if (!TicketingEnabled) return "Ticketing is disabled";
+            if (ev == null) return false;
+            if (!TicketingEnabled) return false;
+            return ev.TicketPriceMin <= 0 && ev.TicketPriceMax <= 0;
+        }
+    }
 
-            if (CapacityValue <= 0)
+    private decimal EstimatedRevenue
+    {
+        get
+        {
+            if (ev == null) return 0m;
+            if (!TicketingEnabled) return 0m;
+
+            if (IsFreeEvent) return 0m;
+
+            if (ev.TicketPriceMin > 0)
             {
-                if (ev.DemoFillPercent.HasValue) return "Capacity is hidden, showing percent only";
-                return "Unlimited seats";
+                return (decimal)TicketsShown * ev.TicketPriceMin;
             }
 
-            return "Total seats available";
+            return 0m;
         }
+    }
+
+    private string EstimatedRevenueText
+    {
+        get
+        {
+            if (!TicketingEnabled) return "—";
+            if (IsFreeEvent) return "Free event";
+            if (EstimatedRevenue <= 0) return "No sales yet";
+            return $"SGD {EstimatedRevenue:0.00}";
+        }
+    }
+
+    private string EstimatedRevenueHelp
+    {
+        get
+        {
+            if (!TicketingEnabled) return "Ticketing is disabled";
+            if (IsFreeEvent) return "This is a free event";
+            if (ev != null && ev.TicketPriceMin > 0) return "Estimated using minimum ticket price";
+            return "No pricing data available";
+        }
+    }
+
+    private List<string> Warnings
+    {
+        get
+        {
+            var list = new List<string>();
+            if (ev == null) return list;
+
+            if (!TicketingEnabled && TicketsSoldReal > 0)
+            {
+                list.Add("Ticketing is disabled but tickets sold is not zero.");
+            }
+
+            if (TicketingEnabled && CapacityValue == 0 && ev.DemoFillPercent == null)
+            {
+                list.Add("Capacity is unlimited. Seats shown will not display unless demo percent is set.");
+            }
+
+            if (ev.DemoFillPercent.HasValue)
+            {
+                list.Add("Demo occupancy override is enabled. Shown tickets are based on demo percent, not real sales.");
+            }
+
+            if (CapacityValue > 0 && TicketsSoldReal > CapacityValue)
+            {
+                list.Add("Tickets sold is greater than capacity. This may indicate inconsistent data.");
+            }
+
+            return list;
+        }
+    }
+
+    private bool CanExport => ev != null;
+
+    private async Task CopyLink()
+    {
+        var link = Nav.ToAbsoluteUri($"/events/stats/{id}").ToString();
+
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", link);
+            await JS.InvokeVoidAsync("alert", "Link copied to clipboard");
+        }
+        catch
+        {
+            await JS.InvokeVoidAsync("prompt", "Copy this link", link);
+        }
+    }
+
+    private async Task ExportCsv()
+    {
+        if (ev == null) return;
+
+        var sb = new StringBuilder();
+
+        sb.AppendLine("Metric,Value");
+        sb.AppendLine($"Event,{EscapeCsv(ev.Title)}");
+        sb.AppendLine($"StartDate,{ev.StartDate:yyyy-MM-dd}");
+        sb.AppendLine($"EndDate,{ev.EndDate:yyyy-MM-dd}");
+        sb.AppendLine($"StartTime,{(ev.StartTime.HasValue ? ev.StartTime.Value.ToString(@"hh\:mm") : "")}");
+        sb.AppendLine($"EndTime,{(ev.EndTime.HasValue ? ev.EndTime.Value.ToString(@"hh\:mm") : "")}");
+        sb.AppendLine($"LastUpdated,{ev.LastUpdatedOn:yyyy-MM-dd HH:mm}");
+        sb.AppendLine($"TicketingEnabled,{TicketingEnabled}");
+        sb.AppendLine($"TotalViews,{TotalViews}");
+        sb.AppendLine($"Capacity,{CapacityValue}");
+        sb.AppendLine($"TicketsSoldReal,{TicketsSoldReal}");
+        sb.AppendLine($"TicketsShown,{TicketsShown}");
+        sb.AppendLine($"FillPercent,{FillPct}");
+        sb.AppendLine($"DisplayedSource,{EscapeCsv(DisplayedSourceLabel)}");
+        sb.AppendLine($"EstimatedRevenue,{EstimatedRevenue:0.00}");
+
+        var filename = $"event_stats_{id}_{DateTime.Now:yyyyMMdd_HHmm}.csv";
+        await JS.InvokeVoidAsync("downloadCsvFile", filename, sb.ToString());
+    }
+
+    private static string EscapeCsv(string? s)
+    {
+        s ??= "";
+        if (s.Contains(",") || s.Contains("\"") || s.Contains("\n"))
+        {
+            return "\"" + s.Replace("\"", "\"\"") + "\"";
+        }
+        return s;
     }
 
     private static int ClampPercent(int p)
@@ -340,4 +510,28 @@ else
         if (p > 100) return 100;
         return p;
     }
+
+    private static string FormatTimeRange(TimeSpan? start, TimeSpan? end)
+    {
+        var s = start.HasValue ? DateTime.Today.Add(start.Value).ToString("HH:mm") : "";
+        var e = end.HasValue ? DateTime.Today.Add(end.Value).ToString("HH:mm") : "";
+        if (!string.IsNullOrWhiteSpace(s) && !string.IsNullOrWhiteSpace(e)) return $"{s} to {e}";
+        if (!string.IsNullOrWhiteSpace(s)) return $"From {s}";
+        if (!string.IsNullOrWhiteSpace(e)) return $"Until {e}";
+        return "";
+    }
 }
+
+<script>
+    window.downloadCsvFile = (filename, content) => {
+        const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+</script>

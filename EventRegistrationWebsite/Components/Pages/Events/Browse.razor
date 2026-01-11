@@ -1,9 +1,6 @@
 ﻿@page "/events/browse"
 @rendermode InteractiveServer
 
-@using System
-@using System.Linq
-@using System.Collections.Generic
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Authorization
@@ -31,6 +28,19 @@
         animation: mgPop 260ms ease-out;
     }
 
+    .mg-pill {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(0,0,0,0.12);
+        background: rgba(255,255,255,0.75);
+    }
+
+    .mg-wallet {
+        max-height: 140px;
+        overflow: auto;
+    }
+
     @@keyframes mgPop {
         0% {
             transform: scale(0.98);
@@ -42,25 +52,10 @@
             opacity: 1;
         }
     }
-
-    .mg-wallet {
-        max-height: 140px;
-        overflow-y: auto;
-    }
-
-    .mg-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        border: 1px solid rgba(0,0,0,0.12);
-        background: #f8f9fa;
-        font-size: 0.85rem;
-    }
 </style>
 
 <CascadingAuthenticationState>
+
     <div class="d-flex align-items-center justify-content-between mb-3">
         <h2 class="mb-0">Events</h2>
 
@@ -126,8 +121,9 @@
                                     <div class="d-flex justify-content-between align-items-start gap-3">
                                         <div class="flex-grow-1">
                                             <h5 class="card-title mb-1">@ev.Title</h5>
+
                                             <div class="text-muted">
-                                                @ev.StartDate.ToString("dd MMM yyyy") to @ev.EndDate.ToString("dd MMM yyyy")
+                                                @FormatDateTimeRange(ev)
                                             </div>
 
                                             <div class="mt-2 d-flex flex-wrap gap-2">
@@ -142,7 +138,6 @@
                                                     <span class="badge bg-dark">Physical</span>
                                                 }
 
-                                                @* Availability chip driven by the SAME effective fill logic *@
                                                 @if (ev.TicketingEnabled && !ev.IsCancelled && ev.Capacity > 0)
                                                 {
                                                     var pct = EffectiveFillPercent(ev);
@@ -180,7 +175,8 @@
                                             <div>@ev.LastUpdatedOn.ToString("dd/MM/yyyy HH:mm")</div>
 
                                             <div class="d-grid gap-2 mt-3">
-                                                <button class="btn btn-outline-primary" @onclick="() => GoDetails(ev.EventID)">
+                                                <button class="btn btn-outline-primary"
+                                                        @onclick="() => TrackViewAndGo(ev.EventID)">
                                                     View
                                                 </button>
 
@@ -203,7 +199,6 @@
     @* ===================== MINI GAME POPUP ===================== *@
     @if (showGameModal)
     {
-        @* Backdrop NEVER closes the modal *@
         <div style="position:fixed; inset:0; background: rgba(0,0,0,0.55); z-index:5000;"></div>
 
         <div class="card shadow"
@@ -221,7 +216,6 @@
                         </div>
                     </div>
 
-                    @* Only this button can close *@
                     <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CloseGame">
                         ✕ Close
                     </button>
@@ -238,7 +232,7 @@
                                        class="form-range"
                                        @bind="adminWinBoostPct" />
                                 <div class="text-muted small">
-                                    Boost: @adminWinBoostPct% (makes it easier)
+                                    Boost: @adminWinBoostPct%
                                 </div>
                             </div>
 
@@ -248,7 +242,7 @@
                                     <input class="form-check-input" type="checkbox" id="g2"
                                            @bind="adminGuaranteeSecondWin" />
                                     <label class="form-check-label" for="g2">
-                                        If 1st try loses, 2nd try wins
+                                        2nd pick of the day always wins
                                     </label>
                                 </div>
                             </div>
@@ -282,14 +276,13 @@
                         </div>
 
                         <div class="text-muted small mt-1">
-                            Stored in localStorage for demo.
+                            Stored in localStorage for demo
                         </div>
                     </div>
                 }
 
                 <hr />
 
-                @* IMPORTANT: even when playsLeft is 0, we DO NOT close. We show state until user presses Close *@
                 @if (playsLeft <= 0 && !gameFinished)
                 {
                     <div class="alert alert-warning mb-0">
@@ -325,10 +318,6 @@
                             </button>
                         </div>
                     </div>
-
-                    <div class="text-muted small mt-2">
-                        Tip: Admin can make it easier 😄
-                    </div>
                 }
                 else
                 {
@@ -342,7 +331,7 @@
                         <div class="border rounded p-3 bg-light mg-reveal">
                             <div class="text-muted small">Voucher code</div>
                             <div class="fw-bold fs-4">@voucherCode</div>
-                            <div class="small text-muted">Discount: @voucherPercent% (demo)</div>
+                            <div class="small text-muted">Discount: @voucherPercent%</div>
                         </div>
                     }
 
@@ -355,15 +344,20 @@
                         }
                         else
                         {
-                            <span class="text-muted small align-self-center">
-                                No plays left today.
-                            </span>
+                            @* ✅ Do NOT show "No plays left" when player won *@
+                            @if (!gameWon)
+                            {
+                                <span class="text-muted small align-self-center">
+                                    No plays left today.
+                                </span>
+                            }
                         }
                     </div>
                 }
             </div>
         </div>
     }
+
 </CascadingAuthenticationState>
 
 @code {
@@ -388,10 +382,11 @@
     private const string KeyLastPopupDate = "erw_game_lastPopup_yyyymmdd";
     private const string KeyPlaysDate = "erw_game_playsDate_yyyymmdd";
     private const string KeyPlaysLeft = "erw_game_playsLeft";
-    private const string KeyLostOnceToday = "erw_game_lostOnceToday";
+    private const string KeyAttemptsToday = "erw_game_attemptsToday";
     private const string KeyVoucherWallet = "erw_game_wallet";
 
     private int playsLeft;
+    private int attemptsToday;
 
     private string? adminMsg;
     private int adminWinBoostPct = 20;
@@ -443,8 +438,6 @@
         modeFilter = "";
     }
 
-    private void GoDetails(int id) => Nav.NavigateTo($"/events/details/{id}");
-
     private async Task OpenGame()
     {
         await LoadOrResetDailyPlays();
@@ -468,18 +461,26 @@
         if (!string.Equals(playsDate, today, StringComparison.Ordinal))
         {
             playsLeft = PlaysPerDay;
+            attemptsToday = 0;
+
             await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysDate, today);
             await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysLeft, playsLeft.ToString());
-            await JS.InvokeVoidAsync("localStorage.setItem", KeyLostOnceToday, "0");
+            await JS.InvokeVoidAsync("localStorage.setItem", KeyAttemptsToday, "0");
             return;
         }
 
         var leftStr = await JS.InvokeAsync<string?>("localStorage.getItem", KeyPlaysLeft);
         if (!int.TryParse(leftStr, out playsLeft) || playsLeft < 0) playsLeft = PlaysPerDay;
+
+        var attStr = await JS.InvokeAsync<string?>("localStorage.getItem", KeyAttemptsToday);
+        if (!int.TryParse(attStr, out attemptsToday) || attemptsToday < 0) attemptsToday = 0;
     }
 
     private Task SavePlaysLeft()
         => JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysLeft, Math.Max(0, playsLeft).ToString()).AsTask();
+
+    private Task SaveAttemptsToday()
+        => JS.InvokeVoidAsync("localStorage.setItem", KeyAttemptsToday, Math.Max(0, attemptsToday).ToString()).AsTask();
 
     private static string TodayKey() => $"{DateTime.Now:yyyyMMdd}";
 
@@ -504,15 +505,7 @@
         return chance;
     }
 
-    private async Task<bool> LostOnceToday()
-    {
-        var v = await JS.InvokeAsync<string?>("localStorage.getItem", KeyLostOnceToday);
-        return string.Equals(v, "1", StringComparison.Ordinal);
-    }
-
-    private Task SetLostOnceToday(bool val)
-        => JS.InvokeVoidAsync("localStorage.setItem", KeyLostOnceToday, val ? "1" : "0").AsTask();
-
+    // ✅ FIX: 2nd pick of the day always wins when adminGuaranteeSecondWin = true
     private async Task PickCard(int picked)
     {
         if (isPicking) return;
@@ -523,18 +516,24 @@
             await LoadOrResetDailyPlays();
             if (playsLeft <= 0) return;
 
+            // consume one play per pick
             playsLeft--;
             await SavePlaysLeft();
 
-            var baseChance = CurrentWinChance();
-            var win = Random.Shared.NextDouble() < baseChance;
+            // count attempts per day
+            attemptsToday++;
+            await SaveAttemptsToday();
 
-            // If admin wants guaranteed 2nd try win:
-            if (adminGuaranteeSecondWin)
+            var win = false;
+
+            if (adminGuaranteeSecondWin && attemptsToday >= 2)
             {
-                var lostOnce = await LostOnceToday();
-                if (lostOnce) win = true;
-                else if (!win) await SetLostOnceToday(true);
+                win = true; // ALWAYS win on 2nd pick of the day
+            }
+            else
+            {
+                var baseChance = CurrentWinChance();
+                win = Random.Shared.NextDouble() < baseChance;
             }
 
             gameFinished = true;
@@ -569,10 +568,11 @@
 
         var today = TodayKey();
         playsLeft = PlaysPerDay;
+        attemptsToday = 0;
 
         await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysDate, today);
         await JS.InvokeVoidAsync("localStorage.setItem", KeyPlaysLeft, PlaysPerDay.ToString());
-        await JS.InvokeVoidAsync("localStorage.setItem", KeyLostOnceToday, "0");
+        await JS.InvokeVoidAsync("localStorage.setItem", KeyAttemptsToday, "0");
 
         adminMsg = "Daily mini game reset to 2 plays for today on this browser.";
         await ResetGame();
@@ -627,7 +627,6 @@
         return text.Length <= max ? text : text.Substring(0, max) + "...";
     }
 
-    @* ====== SHARED “EFFECTIVE” FILL LOGIC (prevents stats mismatch) ====== *@
     private static int EffectiveFillPercent(Event ev)
     {
         if (ev.DemoFillPercent.HasValue)
@@ -649,11 +648,9 @@
         return ("Available", "bg-success");
     }
 
-    private static int FillPercentForBadges(Event ev) => EffectiveFillPercent(ev);
-
     private static string PopularityFace(Event ev)
     {
-        var p = FillPercentForBadges(ev);
+        var p = EffectiveFillPercent(ev);
         if (p < 20) return "😐";
         if (p < 50) return "🙂";
         if (p < 80) return "😄";
@@ -662,7 +659,7 @@
 
     private static string PopularityLabel(Event ev)
     {
-        var p = FillPercentForBadges(ev);
+        var p = EffectiveFillPercent(ev);
         if (p < 20) return "New";
         if (p < 50) return "Gaining";
         if (p < 80) return "Popular";
@@ -689,5 +686,66 @@
         if (v < min) return min;
         if (v > max) return max;
         return v;
+    }
+
+    private async Task TrackViewAndGo(int eventId)
+    {
+        try
+        {
+            var dbEv = await Db.Events.FirstOrDefaultAsync(x => x.EventID == eventId);
+            if (dbEv != null)
+            {
+                dbEv.TotalViews += 1;
+                await Db.SaveChangesAsync();
+            }
+        }
+        catch
+        {
+        }
+        Nav.NavigateTo($"/events/details/{eventId}");
+    }
+
+    private static string FormatDateTimeRange(Event ev)
+    {
+        var startDate = ev.StartDate.ToString("dd MMM yyyy");
+        var endDate = ev.EndDate.ToString("dd MMM yyyy");
+
+        var hasStart = ev.StartTime.HasValue;
+        var hasEnd = ev.EndTime.HasValue;
+
+        string timePart = "";
+        if (hasStart && hasEnd)
+        {
+            timePart = $"{ev.StartTime.Value:hh\\:mm} to {ev.EndTime.Value:hh\\:mm}";
+        }
+        else if (hasStart)
+        {
+            timePart = $"Starts {ev.StartTime.Value:hh\\:mm}";
+        }
+        else if (hasEnd)
+        {
+            timePart = $"Ends {ev.EndTime.Value:hh\\:mm}";
+        }
+
+        if (ev.StartDate.Date == ev.EndDate.Date)
+        {
+            return string.IsNullOrWhiteSpace(timePart)
+                ? startDate
+                : $"{startDate} • {timePart}";
+        }
+
+        return string.IsNullOrWhiteSpace(timePart)
+            ? $"{startDate} to {endDate}"
+            : $"{startDate} to {endDate} • {timePart}";
+    }
+
+    private static string FormatTimeRange(TimeSpan? start, TimeSpan? end)
+    {
+        var s = start.HasValue ? DateTime.Today.Add(start.Value).ToString("HH:mm") : "";
+        var e = end.HasValue ? DateTime.Today.Add(end.Value).ToString("HH:mm") : "";
+        if (!string.IsNullOrWhiteSpace(s) && !string.IsNullOrWhiteSpace(e)) return $"{s} to {e}";
+        if (!string.IsNullOrWhiteSpace(s)) return $"From {s}";
+        if (!string.IsNullOrWhiteSpace(e)) return $"Until {e}";
+        return "";
     }
 }

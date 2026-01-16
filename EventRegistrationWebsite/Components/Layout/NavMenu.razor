@@ -27,7 +27,7 @@
             </NavLink>
         </div>
 
-        <!-- ADMIN ONLY (DO NOT CHANGE YOUR GROUPMATE’S EVENTS/PACKAGES LINKS) -->
+        <!-- ADMIN ONLY -->
         <AuthorizeView Roles="Admin">
             <Authorized>
                 <div class="nav-item px-3">
@@ -81,7 +81,7 @@
             </Authorized>
         </AuthorizeView>
 
-        <!-- USER (your “client”) -->
+        <!-- USER  -->
         <AuthorizeView Roles="User">
             <Authorized>
                 <div class="nav-item px-3">
@@ -107,11 +107,6 @@
         <!-- ATTENDEE -->
         <AuthorizeView Roles="Attendee">
             <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="attendees/create">
-                        <span class="bi bi-person-plus-nav-menu" aria-hidden="true"></span> Event Sign-up
-                    </NavLink>
-                </div>
 
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="waitlists">
@@ -157,6 +152,12 @@
                     <NavLink class="nav-link" href="Account/Login">
                         <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Login
                     </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="attendee-registration">
+                        <span class="bi bi-person-plus-nav-menu" aria-hidden="true"></span> Event Sign-up
+                    </NavLink>
+
                 </div>
             </NotAuthorized>
         </AuthorizeView>

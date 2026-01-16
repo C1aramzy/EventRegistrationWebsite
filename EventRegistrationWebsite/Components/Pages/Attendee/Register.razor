@@ -1,0 +1,176 @@
+﻿@page "/attendee-registration"
+@rendermode InteractiveServer
+
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@using Microsoft.EntityFrameworkCore
+@using System.ComponentModel.DataAnnotations
+
+@inject ApplicationDbContext Db
+@inject NavigationManager Nav
+
+<PageTitle>Attendee Registration</PageTitle>
+
+<div class="portal-attendee-page">
+    <div class="portal-attendee-card-wrap">
+
+        <!-- Floating circle icon -->
+        <div class="portal-attendee-avatar" aria-hidden="true">
+            <span class="portal-attendee-avatar-icon">👤</span>
+        </div>
+
+        <!-- Square card -->
+        <div class="portal-attendee-card">
+            <h2 class="portal-attendee-title">Attendee Registration</h2>
+
+            @if (!string.IsNullOrWhiteSpace(successMessage))
+            {
+                <div class="alert alert-success mt-3">@successMessage</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger mt-3">@errorMessage</div>
+            }
+
+            <EditForm Model="Input" OnValidSubmit="HandleSubmit" class="mt-3">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" />
+
+                <div class="mb-3">
+                    <label class="form-label portal-attendee-label">First Name</label>
+                    <InputText class="form-control portal-attendee-input"
+                               @bind-Value="Input.FirstName"
+                               placeholder="Enter your first name" />
+                    <ValidationMessage For="() => Input.FirstName" class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label portal-attendee-label">Last Name</label>
+                    <InputText class="form-control portal-attendee-input"
+                               @bind-Value="Input.LastName"
+                               placeholder="Enter your last name" />
+                    <ValidationMessage For="() => Input.LastName" class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label portal-attendee-label">Contact Number</label>
+                    <InputText class="form-control portal-attendee-input"
+                               @bind-Value="Input.PhoneNumber"
+                               placeholder="Enter your contact number" />
+                    <ValidationMessage For="() => Input.PhoneNumber" class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label portal-attendee-label">Email</label>
+                    <InputText class="form-control portal-attendee-input"
+                               @bind-Value="Input.Email"
+                               placeholder="Enter your email" />
+                    <ValidationMessage For="() => Input.Email" class="text-danger" />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label portal-attendee-label">Event</label>
+                    <InputSelect class="form-select portal-attendee-input" @bind-Value="Input.EventID">
+                        <option value="0">Select your event</option>
+                        @foreach (var ev in events)
+                        {
+                            <option value="@ev.EventID">@ev.Title</option>
+                        }
+                    </InputSelect>
+
+                    @if (eventRequiredError)
+                    {
+                        <div class="text-danger mt-1">Please select an event.</div>
+                    }
+                </div>
+
+                <button type="submit" class="btn portal-attendee-btn w-100">Register</button>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Event> events = new();
+
+    private string? successMessage;
+    private string? errorMessage;
+    private bool eventRequiredError;
+
+    private AttendeeRegisterModel Input { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load only valid events (optional but recommended)
+        events = await Db.Events
+            .Where(e => e.IsPublished && !e.IsCancelled)
+            .OrderBy(e => e.StartDate)
+            .ToListAsync();
+    }
+
+    private async Task HandleSubmit()
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        // Ensure dropdown chosen
+        if (Input.EventID <= 0)
+        {
+            eventRequiredError = true;
+            return;
+        }
+        eventRequiredError = false;
+
+        // Normalize email so duplicates are detected properly
+        var emailNormalized = Input.Email.Trim().ToLower();
+
+        // Prevent duplicate registration by same email for same event
+        var alreadyRegistered = await Db.Attendees.AnyAsync(a =>
+            a.EventID == Input.EventID &&
+            a.Email.ToLower() == emailNormalized);
+
+        if (alreadyRegistered)
+        {
+            errorMessage = "You have already registered for this event using this email.";
+            return;
+        }
+
+        var attendee = new Attendee
+        {
+            FirstName = Input.FirstName.Trim(),
+            LastName = Input.LastName.Trim(),
+            PhoneNumber = string.IsNullOrWhiteSpace(Input.PhoneNumber) ? null : Input.PhoneNumber.Trim(),
+            Email = emailNormalized,
+            EventID = Input.EventID
+        };
+
+        Db.Attendees.Add(attendee);
+        await Db.SaveChangesAsync();
+
+        successMessage = "Registration successful!";
+
+        // Clear form + clear dropdown error
+        Input = new AttendeeRegisterModel();
+        eventRequiredError = false;
+    }
+
+    private sealed class AttendeeRegisterModel
+    {
+        [Required]
+        [StringLength(50)]
+        public string FirstName { get; set; } = "";
+
+        [Required]
+        [StringLength(50)]
+        public string LastName { get; set; } = "";
+
+        [StringLength(30)]
+        public string? PhoneNumber { get; set; }
+
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = "";
+
+        public int EventID { get; set; }
+    }
+}

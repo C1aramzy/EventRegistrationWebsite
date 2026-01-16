@@ -49,3 +49,77 @@ h1:focus {
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
 }
+
+/* ======================================
+   Attendee Registration (Portal layout)
+   ====================================== */
+
+.portal-attendee-page {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background: url("/Images/placeholder-eventPic.png") center/cover no-repeat fixed;
+    padding: 24px;
+}
+
+.portal-attendee-card-wrap {
+    position: relative;
+    width: min(460px, 92vw);
+}
+
+.portal-attendee-card {
+    background: rgba(255,255,255,0.95);
+    border: 2px solid rgba(0,0,0,0.35);
+    border-radius: 2px;
+    padding: 56px 32px 28px 32px;
+    box-shadow: 0 14px 35px rgba(0,0,0,0.18);
+}
+
+.portal-attendee-avatar {
+    position: absolute;
+    top: -38px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 76px;
+    height: 76px;
+    border-radius: 999px;
+    background: #a4688f;
+    border: 2px solid rgba(0,0,0,0.35);
+    display: grid;
+    place-items: center;
+}
+
+.portal-attendee-avatar-icon {
+    font-size: 30px;
+    line-height: 1;
+    filter: grayscale(100%) brightness(5);
+}
+
+.portal-attendee-title {
+    text-align: center;
+    font-weight: 800;
+    margin: 0;
+}
+
+.portal-attendee-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.portal-attendee-input {
+    border-radius: 2px;
+}
+
+.portal-attendee-btn {
+    background: #a4688f;
+    color: #fff;
+    font-weight: 800;
+    border-radius: 2px;
+    border: 1px solid rgba(0,0,0,0.35);
+    padding: 10px 12px;
+}
+
+    .portal-attendee-btn:hover {
+        filter: brightness(0.95);
+        color: #fff;
+    }

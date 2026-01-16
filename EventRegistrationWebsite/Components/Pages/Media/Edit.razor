@@ -1,0 +1,70 @@
+﻿@page "/media/edit"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit Media</PageTitle>
+
+<h1>Edit Media</h1>
+<hr />
+
+@if (Media == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="Media" OnValidSubmit="UpdateMedia">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">File Path</label>
+            <InputText @bind-Value="Media.FilePath" class="form-control" />
+            <ValidationMessage For="() => Media.FilePath" class="text-danger" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Description</label>
+            <InputText @bind-Value="Media.Description" class="form-control" />
+            <ValidationMessage For="() => Media.Description" class="text-danger" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Uploaded Date</label>
+            <InputDate @bind-Value="Media.UploadedDate" class="form-control" />
+            <ValidationMessage For="() => Media.UploadedDate" class="text-danger" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Event ID</label>
+            <InputNumber @bind-Value="Media.EventID" class="form-control" />
+            <ValidationMessage For="() => Media.EventID" class="text-danger" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save</button>
+    </EditForm>
+
+    <a href="/media">Back to List</a>
+}
+
+@code {
+    private Media? Media;
+
+    [SupplyParameterFromQuery]
+    public int MediaID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Media = await Db.Media.FindAsync(MediaID);
+        if (Media == null)
+            NavigationManager.NavigateTo("/media");
+    }
+
+    private async Task UpdateMedia()
+    {
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/media");
+    }
+}

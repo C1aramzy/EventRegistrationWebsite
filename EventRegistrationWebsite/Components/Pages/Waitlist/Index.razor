@@ -1,0 +1,27 @@
+﻿@page "/waitlists"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject ApplicationDbContext Db
+
+<PageTitle>Waitlists</PageTitle>
+
+<h1>Waitlists</h1>
+
+<p>
+    <a href="/waitlists/create">Create New</a>
+</p>
+
+<QuickGrid Class="table" Items="Db.Waitlists">
+    <PropertyColumn Property="w => w.Name" Title="Name" />
+    <PropertyColumn Property="w => w.Email" Title="Email" />
+    <PropertyColumn Property="w => w.EventID" Title="Event ID" />
+    <PropertyColumn Property="w => w.CreatedDate" Title="Created" />
+
+    <TemplateColumn Context="w">
+        <a href="@($"/waitlists/details?waitlistid={w.WaitlistID}")">Details</a> |
+        <a href="@($"/waitlists/edit?waitlistid={w.WaitlistID}")">Edit</a> |
+        <a href="@($"/waitlists/delete?waitlistid={w.WaitlistID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+

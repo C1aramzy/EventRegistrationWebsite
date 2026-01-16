@@ -1,0 +1,48 @@
+﻿@page "/attendees/edit"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit Attendee</PageTitle>
+
+@if (Attendee == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="Attendee" OnValidSubmit="UpdateAttendee">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <InputText @bind-Value="Attendee.FirstName" class="form-control mb-2" />
+        <InputText @bind-Value="Attendee.LastName" class="form-control mb-2" />
+        <InputText @bind-Value="Attendee.Email" class="form-control mb-2" />
+
+        <button class="btn btn-primary">Save</button>
+    </EditForm>
+}
+
+<a href="/attendees">Back</a>
+
+@code {
+    [SupplyParameterFromQuery]
+    public int AttendeeID { get; set; }
+
+    private Attendee? Attendee;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Attendee = await Db.Attendees.FindAsync(AttendeeID);
+        if (Attendee == null)
+            NavigationManager.NavigateTo("/attendees");
+    }
+
+    private async Task UpdateAttendee()
+    {
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/attendees");
+    }
+}
+

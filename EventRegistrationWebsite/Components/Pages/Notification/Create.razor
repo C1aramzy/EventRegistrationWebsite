@@ -1,0 +1,51 @@
+﻿@page "/notifications/create"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Notification</PageTitle>
+
+<h1>Create Notification</h1>
+<hr />
+
+<EditForm Model="Notification" OnValidSubmit="AddNotification">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" />
+
+    <div class="mb-3">
+        <label class="form-label">Event ID</label>
+        <InputNumber @bind-Value="Notification.EventID" class="form-control" />
+        <ValidationMessage For="() => Notification.EventID" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Message</label>
+        <InputTextArea @bind-Value="Notification.Message" class="form-control" />
+        <ValidationMessage For="() => Notification.Message" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Is Read</label>
+        <InputCheckbox @bind-Value="Notification.IsRead" class="form-check-input" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create</button>
+</EditForm>
+
+<a href="/notifications">Back to List</a>
+
+@code {
+    private Notification Notification { get; set; } = new()
+    {
+        DateCreated = DateTime.Now,
+        IsRead = false
+    };
+
+    private async Task AddNotification()
+    {
+        Db.Notifications.Add(Notification);
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/notifications");
+    }
+}

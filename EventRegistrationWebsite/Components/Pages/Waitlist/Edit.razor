@@ -1,0 +1,61 @@
+﻿@page "/waitlists/edit"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit Waitlist</PageTitle>
+
+<h1>Edit Waitlist</h1>
+<hr />
+
+@if (Waitlist == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="Waitlist" OnValidSubmit="UpdateWaitlist">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label>Name</label>
+            <InputText @bind-Value="Waitlist.Name" class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label>Email</label>
+            <InputText @bind-Value="Waitlist.Email" class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label>Event ID</label>
+            <InputNumber @bind-Value="Waitlist.EventID" class="form-control" />
+        </div>
+
+        <button class="btn btn-primary">Save</button>
+    </EditForm>
+}
+
+<a href="/waitlists">Back</a>
+
+@code {
+    private Waitlist? Waitlist;
+
+    [SupplyParameterFromQuery]
+    public int WaitlistID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Waitlist = await Db.Waitlists.FindAsync(WaitlistID);
+        if (Waitlist == null)
+            NavigationManager.NavigateTo("/waitlists");
+    }
+
+    private async Task UpdateWaitlist()
+    {
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/waitlists");
+    }
+}

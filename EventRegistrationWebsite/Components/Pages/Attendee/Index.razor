@@ -1,0 +1,27 @@
+﻿@page "/attendees"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject ApplicationDbContext Db
+
+<PageTitle>Attendees</PageTitle>
+
+<h1>Attendees</h1>
+
+<p>
+    <a href="/attendees/create">Create New</a>
+</p>
+
+<QuickGrid Class="table" Items="Db.Attendees">
+    <PropertyColumn Property="a => a.FirstName" />
+    <PropertyColumn Property="a => a.LastName" />
+    <PropertyColumn Property="a => a.Email" />
+    <PropertyColumn Property="a => a.PhoneNumber" />
+    <PropertyColumn Property="a => a.EventID" />
+
+    <TemplateColumn Context="a">
+        <a href="@($"/attendees/edit?attendeeid={a.AttendeeID}")">Edit</a> |
+        <a href="@($"/attendees/details?attendeeid={a.AttendeeID}")">Details</a> |
+        <a href="@($"/attendees/delete?attendeeid={a.AttendeeID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>

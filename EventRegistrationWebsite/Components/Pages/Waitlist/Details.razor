@@ -1,0 +1,47 @@
+﻿@page "/waitlists/details"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Waitlist Details</PageTitle>
+
+<h1>Waitlist Details</h1>
+<hr />
+
+@if (waitlist == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <dl class="row">
+        <dt class="col-sm-2">Name</dt>
+        <dd class="col-sm-10">@waitlist.Name</dd>
+
+        <dt class="col-sm-2">Email</dt>
+        <dd class="col-sm-10">@waitlist.Email</dd>
+
+        <dt class="col-sm-2">Event ID</dt>
+        <dd class="col-sm-10">@waitlist.EventID</dd>
+
+        <dt class="col-sm-2">Joined</dt>
+        <dd class="col-sm-10">@waitlist.CreatedDate</dd>
+    </dl>
+
+    <a href="/waitlists">Back to List</a>
+}
+
+@code {
+    private Waitlist? waitlist;
+
+    [SupplyParameterFromQuery]
+    public int WaitlistID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        waitlist = await Db.Waitlists.FindAsync(WaitlistID);
+        if (waitlist == null)
+            NavigationManager.NavigateTo("/waitlists");
+    }
+}

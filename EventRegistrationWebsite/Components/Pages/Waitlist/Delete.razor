@@ -1,0 +1,48 @@
+﻿@page "/waitlists/delete"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete Waitlist</PageTitle>
+
+<h1>Delete Waitlist</h1>
+<hr />
+
+@if (waitlist == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <p>Are you sure you want to remove this person from the waitlist?</p>
+
+    <strong>@waitlist.Name (@waitlist.Email)</strong>
+
+    <br />
+    <br />
+
+    <button class="btn btn-danger" @onclick="DeleteWaitlist">Delete</button>
+    <a class="btn btn-secondary ms-2" href="/waitlists">Cancel</a>
+}
+
+@code {
+    private Waitlist? waitlist;
+
+    [SupplyParameterFromQuery]
+    public int WaitlistID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        waitlist = await Db.Waitlists.FindAsync(WaitlistID);
+        if (waitlist == null)
+            NavigationManager.NavigateTo("/waitlists");
+    }
+
+    private async Task DeleteWaitlist()
+    {
+        Db.Waitlists.Remove(waitlist!);
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/waitlists");
+    }
+}

@@ -1,4 +1,4 @@
-using EventRegistrationWebsite.Components;
+﻿using EventRegistrationWebsite.Components;
 using EventRegistrationWebsite.Components.Account;
 using EventRegistrationWebsite.Data;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -7,44 +7,63 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// -----------------------------------------
+// Database: ONE context for Identity + App data
+// -----------------------------------------
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+// Identity (requires AddDbContext)
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(connectionString));
+
+// Optional helper for scaffolded grid components
+builder.Services.AddQuickGridEntityFrameworkAdapter();
+
+// -----------------------------------------
+// Blazor + Services
+// -----------------------------------------
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-
 builder.Services.AddHttpClient();
-//to add map into app
+builder.Services.AddScoped<EventRegistrationWebsite.Services.OneMapService>();
 
+// -----------------------------------------
+// Auth / Identity
+// -----------------------------------------
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
-builder.Services.AddScoped<EventRegistrationWebsite.Services.OneMapService>();
-
 
 builder.Services.AddAuthentication(options =>
-    {
-        options.DefaultScheme = IdentityConstants.ApplicationScheme;
-        options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
-    })
-    .AddIdentityCookies();
+{
+    options.DefaultScheme = IdentityConstants.ApplicationScheme;
+    options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+})
+.AddIdentityCookies();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
-    .AddRoles<IdentityRole>()
-    .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddSignInManager()
-    .AddRoleManager<RoleManager<IdentityRole>>()
-    .AddDefaultTokenProviders();
+builder.Services.AddIdentityCore<ApplicationUser>(options =>
+{
+    options.SignIn.RequireConfirmedAccount = false;
+})
+
+.AddRoles<IdentityRole>()
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddSignInManager()
+.AddRoleManager<RoleManager<IdentityRole>>()
+.AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// -----------------------------------------
+// Error handling + pipeline
+// -----------------------------------------
 if (app.Environment.IsDevelopment())
 {
     app.UseMigrationsEndPoint();
@@ -52,11 +71,16 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
-//added to create roles and admin user at startup
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseAntiforgery();
+
+// -----------------------------------------
+// Seed Roles + Admin user on startup
+// -----------------------------------------
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
@@ -64,12 +88,16 @@ using (var scope = app.Services.CreateScope())
 
     var adminRole = "Admin";
     var userRole = "User";
+    var attendeeRole = "Attendee";
 
     if (!await roleManager.RoleExistsAsync(adminRole))
         await roleManager.CreateAsync(new IdentityRole(adminRole));
 
     if (!await roleManager.RoleExistsAsync(userRole))
         await roleManager.CreateAsync(new IdentityRole(userRole));
+
+    if (!await roleManager.RoleExistsAsync(attendeeRole))
+        await roleManager.CreateAsync(new IdentityRole(attendeeRole));
 
     var adminEmail = "admin@school.com";
     var adminUser = await userManager.FindByEmailAsync(adminEmail);
@@ -89,17 +117,13 @@ using (var scope = app.Services.CreateScope())
     if (!await userManager.IsInRoleAsync(adminUser, adminRole))
         await userManager.AddToRoleAsync(adminUser, adminRole);
 }
-//end added code
 
-app.UseHttpsRedirection();
-
-app.UseStaticFiles();
-app.UseAntiforgery();
-
+// -----------------------------------------
+// Routing
+// -----------------------------------------
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-// Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
 
 app.Run();

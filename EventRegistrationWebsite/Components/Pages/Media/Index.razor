@@ -1,0 +1,27 @@
+﻿@page "/media"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject ApplicationDbContext Db
+
+<PageTitle>Media</PageTitle>
+
+<h1>Media</h1>
+
+<p>
+    <a href="/media/create">Create New</a>
+</p>
+
+<QuickGrid Class="table" Items="Db.Media">
+    <PropertyColumn Property="m => m.MediaID" Title="ID" />
+    <PropertyColumn Property="m => m.FilePath" Title="File Path" />
+    <PropertyColumn Property="m => m.Description" Title="Description" />
+    <PropertyColumn Property="m => m.UploadedDate" Title="Uploaded" />
+    <PropertyColumn Property="m => m.EventID" Title="Event ID" />
+
+    <TemplateColumn Context="m">
+        <a href="@($"/media/details?mediaid={m.MediaID}")">Details</a> |
+        <a href="@($"/media/edit?mediaid={m.MediaID}")">Edit</a> |
+        <a href="@($"/media/delete?mediaid={m.MediaID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>

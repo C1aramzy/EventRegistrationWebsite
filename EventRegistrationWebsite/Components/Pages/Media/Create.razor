@@ -1,0 +1,57 @@
+﻿@page "/media/create"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Media</PageTitle>
+
+<h1>Create Media</h1>
+<hr />
+
+<EditForm Model="Media" OnValidSubmit="AddMedia">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" />
+
+    <div class="mb-3">
+        <label class="form-label">File Path</label>
+        <InputText @bind-Value="Media.FilePath" class="form-control" />
+        <ValidationMessage For="() => Media.FilePath" class="text-danger" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Description</label>
+        <InputText @bind-Value="Media.Description" class="form-control" />
+        <ValidationMessage For="() => Media.Description" class="text-danger" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Uploaded Date</label>
+        <InputDate @bind-Value="Media.UploadedDate" class="form-control" />
+        <ValidationMessage For="() => Media.UploadedDate" class="text-danger" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Event ID</label>
+        <InputNumber @bind-Value="Media.EventID" class="form-control" />
+        <ValidationMessage For="() => Media.EventID" class="text-danger" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create</button>
+</EditForm>
+
+<a href="/media">Back to List</a>
+
+@code {
+    private Media Media { get; set; } = new()
+    {
+        UploadedDate = DateTime.Now
+    };
+
+    private async Task AddMedia()
+    {
+        Db.Media.Add(Media);
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/media");
+    }
+}

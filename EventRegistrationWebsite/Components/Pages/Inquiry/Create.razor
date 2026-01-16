@@ -1,0 +1,53 @@
+﻿@page "/inquiries/create"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Inquiry</PageTitle>
+
+<h1>Create Inquiry</h1>
+<hr />
+
+<EditForm Model="Inquiry" OnValidSubmit="AddInquiry">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" />
+
+    <div class="mb-3">
+        <label class="form-label">Name</label>
+        <InputText @bind-Value="Inquiry.SenderName" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <InputText @bind-Value="Inquiry.SenderEmail" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Subject</label>
+        <InputText @bind-Value="Inquiry.Subject" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Message</label>
+        <InputTextArea @bind-Value="Inquiry.Message" class="form-control" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Send</button>
+</EditForm>
+
+<a href="/inquiries">Back to List</a>
+
+@code {
+    private Inquiry Inquiry { get; set; } = new()
+    {
+        ReceivedDate = DateTime.Now
+    };
+
+    private async Task AddInquiry()
+    {
+        Db.Inquiries.Add(Inquiry);
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/inquiries");
+    }
+}

@@ -1,0 +1,49 @@
+﻿@page "/media/delete"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete Media</PageTitle>
+
+<h1>Delete Media</h1>
+<hr />
+
+@if (mediaItem == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <p>Are you sure you want to delete this media item?</p>
+
+    <dl class="row">
+        <dt class="col-sm-2">File Path</dt>
+        <dd class="col-sm-10">@mediaItem.FilePath</dd>
+    </dl>
+
+    <button class="btn btn-danger" @onclick="DeleteMedia">Delete</button>
+    <a class="btn btn-secondary ms-2" href="/media">Cancel</a>
+}
+
+@code {
+    private Media? mediaItem;
+
+    [SupplyParameterFromQuery]
+    public int MediaID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        mediaItem = await Db.Media.FindAsync(MediaID);
+        if (mediaItem == null)
+            NavigationManager.NavigateTo("/media");
+    }
+
+    private async Task DeleteMedia()
+    {
+        Db.Media.Remove(mediaItem!);
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/media");
+    }
+}
+

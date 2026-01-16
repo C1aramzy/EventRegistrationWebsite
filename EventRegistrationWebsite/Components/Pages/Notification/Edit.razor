@@ -1,0 +1,61 @@
+﻿@page "/notifications/edit"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit Notification</PageTitle>
+
+<h1>Edit Notification</h1>
+<hr />
+
+@if (Notification == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="Notification" OnValidSubmit="UpdateNotification">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">Event ID</label>
+            <InputNumber @bind-Value="Notification.EventID" class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Message</label>
+            <InputTextArea @bind-Value="Notification.Message" class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Is Read</label>
+            <InputCheckbox @bind-Value="Notification.IsRead" class="form-check-input" />
+        </div>
+
+        <button class="btn btn-primary">Save</button>
+    </EditForm>
+}
+
+<a href="/notifications">Back</a>
+
+@code {
+    private Notification? Notification;
+
+    [SupplyParameterFromQuery]
+    public int NotificationID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Notification = await Db.Notifications.FindAsync(NotificationID);
+        if (Notification == null)
+            NavigationManager.NavigateTo("/notifications");
+    }
+
+    private async Task UpdateNotification()
+    {
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/notifications");
+    }
+}

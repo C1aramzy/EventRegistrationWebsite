@@ -1,0 +1,44 @@
+﻿@page "/attendees/details"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Attendee Details</PageTitle>
+
+@if (attendee == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <dl class="row">
+        <dt class="col-sm-2">First Name</dt>
+        <dd class="col-sm-10">@attendee.FirstName</dd>
+
+        <dt class="col-sm-2">Last Name</dt>
+        <dd class="col-sm-10">@attendee.LastName</dd>
+
+        <dt class="col-sm-2">Email</dt>
+        <dd class="col-sm-10">@attendee.Email</dd>
+
+        <dt class="col-sm-2">Phone</dt>
+        <dd class="col-sm-10">@attendee.PhoneNumber</dd>
+    </dl>
+
+    <a href="/attendees">Back</a>
+}
+
+@code {
+    private Attendee? attendee;
+
+    [SupplyParameterFromQuery]
+    public int AttendeeID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        attendee = await Db.Attendees.FindAsync(AttendeeID);
+        if (attendee == null)
+            NavigationManager.NavigateTo("/attendees");
+    }
+}

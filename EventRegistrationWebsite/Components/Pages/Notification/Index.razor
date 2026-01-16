@@ -1,0 +1,27 @@
+﻿@page "/notifications"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject ApplicationDbContext Db
+
+<PageTitle>Notifications</PageTitle>
+
+<h1>Notifications</h1>
+
+<p>
+    <a href="/notifications/create">Create New</a>
+</p>
+
+<QuickGrid Class="table" Items="Db.Notifications">
+    <PropertyColumn Property="n => n.NotificationID" Title="ID" />
+    <PropertyColumn Property="n => n.EventID" Title="Event ID" />
+    <PropertyColumn Property="n => n.Message" Title="Message" />
+    <PropertyColumn Property="n => n.DateCreated" Title="Created" />
+    <PropertyColumn Property="n => n.IsRead" Title="Read?" />
+
+    <TemplateColumn Context="n">
+        <a href="@($"/notifications/details?notificationid={n.NotificationID}")">Details</a> |
+        <a href="@($"/notifications/edit?notificationid={n.NotificationID}")">Edit</a> |
+        <a href="@($"/notifications/delete?notificationid={n.NotificationID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>

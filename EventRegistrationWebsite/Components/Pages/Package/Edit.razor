@@ -1,16 +1,28 @@
 ﻿@page "/packages/edit/{id:int}"
+@rendermode InteractiveServer
+
 @using EventRegistrationWebsite.Models
 @using Microsoft.EntityFrameworkCore
-@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
-@inject NavigationManager Navigation
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+
 @attribute [Authorize(Roles = "Admin")]
 
-<h3>Edit Package</h3>
+@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+@inject NavigationManager Navigation
+
+<h3 class="mb-3">Edit Package</h3>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
 
 @if (packageModel == null)
 {
-    <p>Package not found.</p>
+    <div class="alert alert-warning">Package not found.</div>
+    <a class="btn btn-secondary" href="/packages">Back</a>
 }
 else
 {
@@ -19,61 +31,199 @@ else
         <ValidationSummary />
 
         <div class="mb-3">
-            <label>Package Name</label>
-            <InputText class="form-control"
-                       @bind-Value="packageModel.PackageName" />
+            <label class="form-label fw-semibold">Package name</label>
+            <InputText class="form-control" @bind-Value="packageModel.PackageName" />
         </div>
 
         <div class="mb-3">
-            <label>Description</label>
-            <InputTextArea class="form-control"
-                           @bind-Value="packageModel.Description" />
+            <label class="form-label fw-semibold">Description</label>
+            <InputTextArea class="form-control" rows="3" @bind-Value="packageModel.Description" />
         </div>
 
         <div class="mb-3">
-            <label>Price</label>
-            <InputNumber class="form-control"
-                         @bind-Value="packageModel.Price" />
+            <label class="form-label fw-semibold">Price</label>
+            <InputNumber class="form-control" @bind-Value="packageModel.Price" />
         </div>
 
         <div class="mb-3">
-            <label>Event</label>
-            <InputSelect class="form-control"
-                         @bind-Value="packageModel.EventID">
+            <label class="form-label fw-semibold">Bundle event (optional)</label>
+            <InputSelect class="form-select" TValue="int?" @bind-Value="packageModel.BundleEventID">
+                <option value="">None</option>
                 @foreach (var e in events)
                 {
                     <option value="@e.EventID">@e.Title</option>
                 }
             </InputSelect>
+            <div class="form-text">This is optional. Your real included events are controlled below.</div>
         </div>
 
-        <button type="submit" class="btn btn-primary">Save</button>
-        <a class="btn btn-secondary" href="/packages">Cancel</a>
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-semibold">Max per user</label>
+                <InputNumber class="form-control" @bind-Value="packageModel.MaxPerUser" />
+                <div class="form-text">0 means no limit</div>
+            </div>
+
+            <div class="col-12 col-md-6 d-flex align-items-end">
+                <div class="form-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="packageModel.IsActive" />
+                    <label class="form-check-label fw-semibold">Active</label>
+                </div>
+            </div>
+        </div>
+
+        <hr class="my-4" />
+
+        <h5 class="mb-2">Included events</h5>
+
+        <div class="d-flex gap-2 align-items-center flex-wrap mb-2">
+            <InputSelect class="form-select" TValue="int" @bind-Value="pickedEventId">
+                <option value="0">Select event</option>
+                @foreach (var e in events)
+                {
+                    <option value="@e.EventID">@e.Title</option>
+                }
+            </InputSelect>
+
+            <button type="button" class="btn btn-primary" @onclick="AddEvent" disabled="@busy">Add</button>
+        </div>
+
+        @if (selectedEventIds.Count == 0)
+        {
+            <div class="text-muted">No events added yet. Add at least 2 events for a bundle.</div>
+        }
+        else
+        {
+            <ul class="list-group mb-3">
+                @foreach (var eid in selectedEventIds)
+                {
+                    var title = events.FirstOrDefault(x => x.EventID == eid)?.Title ?? $"Event {eid}";
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold">@title</span>
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                @onclick="(() => RemoveEvent(eid))"
+                                disabled="@busy">
+                            Remove
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+
+        <button type="submit" class="btn btn-primary" disabled="@busy">
+            @(busy ? "Saving..." : "Save")
+        </button>
+        <a class="btn btn-secondary ms-2" href="/packages">Cancel</a>
     </EditForm>
 }
 
 @code {
-    [Parameter]
-    public int id { get; set; }
+    [Parameter] public int id { get; set; }
 
     private Package? packageModel;
     private List<Event> events = new();
 
+    private List<int> selectedEventIds = new();
+    private int pickedEventId = 0;
+
+    private bool busy;
+    private string? error;
+
     protected override async Task OnInitializedAsync()
     {
-        packageModel = await Db.Packages
-            .FirstOrDefaultAsync(p => p.PackageId == id);
+        events = await Db.Events
+            .AsNoTracking()
+            .OrderBy(e => e.Title)
+            .ToListAsync();
 
-        events = await Db.Events.ToListAsync();
+        packageModel = await Db.Packages
+            .Include(p => p.PackageEvents)
+            .FirstOrDefaultAsync(p => p.PackageID == id);
+
+        if (packageModel == null) return;
+
+        selectedEventIds = packageModel.PackageEvents
+            .OrderBy(x => x.SortOrder)
+            .Select(x => x.EventID)
+            .ToList();
+    }
+
+    private void AddEvent()
+    {
+        if (pickedEventId <= 0) return;
+        if (selectedEventIds.Contains(pickedEventId)) return;
+
+        selectedEventIds.Add(pickedEventId);
+        pickedEventId = 0;
+    }
+
+    private void RemoveEvent(int eid)
+    {
+        selectedEventIds.Remove(eid);
     }
 
     private async Task Update()
     {
-        if (packageModel != null)
+        if (packageModel == null) return;
+        if (busy) return;
+
+        busy = true;
+        error = null;
+
+        try
         {
+            if (string.IsNullOrWhiteSpace(packageModel.PackageName))
+            {
+                error = "Package name is required.";
+                return;
+            }
+
+            if (packageModel.Price <= 0)
+            {
+                error = "Price must be more than 0.";
+                return;
+            }
+
+            if (selectedEventIds.Count < 2)
+            {
+                error = "Add at least 2 events for a bundle package.";
+                return;
+            }
+
             packageModel.LastUpdatedOn = DateTime.Now;
+
+            var existing = await Db.PackageEvents
+                .Where(x => x.PackageId == packageModel.PackageID)
+                .ToListAsync();
+
+            Db.PackageEvents.RemoveRange(existing);
+
+            var sort = 0;
+            foreach (var eid in selectedEventIds)
+            {
+                Db.PackageEvents.Add(new PackageEvent
+                {
+                    PackageId = packageModel.PackageID,
+                    EventID = eid,
+                    QuantityIncluded = 1,
+                    IsOptional = false,
+                    OptionalGroupKey = null,
+                    SortOrder = sort
+                });
+
+                sort++;
+            }
+
             await Db.SaveChangesAsync();
             Navigation.NavigateTo("/packages");
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
         }
     }
 }

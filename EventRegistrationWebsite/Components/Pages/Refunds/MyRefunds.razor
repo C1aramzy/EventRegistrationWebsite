@@ -1,0 +1,135 @@
+﻿@page "/my-refunds"
+@rendermode InteractiveServer
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+
+@attribute [Authorize]
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<h3 class="mb-3">My refunds</h3>
+
+@if (loading)
+{
+    <div class="alert alert-info">Loading</div>
+}
+else if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (items.Count == 0)
+{
+    <div class="alert alert-info">No refunds yet.</div>
+    <button class="btn btn-outline-secondary" @onclick='() => Nav.NavigateTo("/my-tickets")'>Back</button>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var r in items)
+        {
+            <div class="col-12 col-lg-6">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="fw-semibold">@r.EventTitle</div>
+                        <div class="text-muted small">Ticket ID: @r.TicketId</div>
+
+                        <hr />
+
+                        <div class="d-flex justify-content-between">
+                            <span>Status</span>
+                            <span class="fw-semibold">@r.Status</span>
+                        </div>
+
+                        <div class="text-muted small mt-2">
+                            Requested: @r.CreatedAt
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(r.AdminNote))
+                        {
+                            <div class="mt-2">
+                                <div class="text-muted small">Admin note</div>
+                                <div>@r.AdminNote</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <button class="btn btn-outline-secondary mt-3" @onclick='() => Nav.NavigateTo("/my-tickets")'>Back</button>
+}
+
+@code {
+    private bool loading = true;
+    private string? error;
+    private List<RowVm> items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                error = "User id not found. Please log in again.";
+                return;
+            }
+
+            var refunds = await Db.RefundRequests
+                .Where(r => r.UserId == userId)
+                .OrderByDescending(r => r.RefundRequestId)
+                .ToListAsync();
+
+            if (refunds.Count == 0) return;
+
+            var ticketIds = refunds.Select(x => x.TicketId).Distinct().ToList();
+            var tickets = await Db.Tickets.Where(t => ticketIds.Contains(t.TicketId)).ToListAsync();
+
+            var eventIds = tickets.Select(t => t.EventID).Distinct().ToList();
+            var evMap = await Db.Events.Where(e => eventIds.Contains(e.EventID)).ToDictionaryAsync(e => e.EventID);
+            var ticketMap = tickets.ToDictionary(t => t.TicketId);
+
+            foreach (var r in refunds)
+            {
+                if (!ticketMap.TryGetValue(r.TicketId, out var t)) continue;
+                if (!evMap.TryGetValue(t.EventID, out var ev)) continue;
+
+                items.Add(new RowVm
+                {
+                    TicketId = r.TicketId,
+                    EventTitle = ev.Title,
+                    Status = r.Status,
+                    CreatedAt = r.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm"),
+                    AdminNote = r.AdminNote
+                });
+            }
+        }
+        catch
+        {
+            error = "Failed to load refunds.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private class RowVm
+    {
+        public int TicketId { get; set; }
+        public string EventTitle { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string CreatedAt { get; set; } = "";
+        public string? AdminNote { get; set; }
+    }
+}

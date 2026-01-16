@@ -1,0 +1,542 @@
+﻿@page "/achievements"
+@rendermode InteractiveServer
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using EventRegistrationWebsite.Data
+
+@attribute [Authorize]
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+
+<style>
+    :root {
+        --bg: #fff5f8;
+        --card: #ffffff;
+        --border: rgba(236,72,153,.18);
+        --soft: rgba(236,72,153,.08);
+        --accent: #ec4899;
+        --accent2: #db2777;
+        --text: rgba(0,0,0,.86);
+        --muted: rgba(0,0,0,.56);
+        --shadow: 0 12px 30px rgba(236,72,153,.12);
+    }
+
+    .pageWrap {
+        min-height: calc(100vh - 80px);
+        padding: 18px 14px 28px;
+        background: radial-gradient(1200px 500px at 20% -10%, rgba(236,72,153,.18), transparent 60%), radial-gradient(900px 420px at 95% 15%, rgba(219,39,119,.16), transparent 55%), var(--bg);
+        color: var(--text);
+    }
+
+    .topbar {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+    }
+
+    .title h2 {
+        margin: 0;
+        font-weight: 800;
+        letter-spacing: .2px;
+    }
+
+    .title .sub {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: .95rem;
+    }
+
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.8);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+        font-weight: 700;
+        color: rgba(0,0,0,.70);
+        white-space: nowrap;
+    }
+
+    .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        min-width: 0;
+        margin-bottom: 14px;
+    }
+
+    .pad {
+        padding: 14px;
+    }
+
+    .row2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 10px;
+    }
+
+    @@media (max-width: 720px) {
+        .row2 {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .statBox {
+        border: 1px solid rgba(0,0,0,.08);
+        background: rgba(236,72,153,.05);
+        border-radius: 14px;
+        padding: 10px 10px;
+    }
+
+    .statLabel {
+        font-size: .85rem;
+        color: var(--muted);
+        margin-bottom: 2px;
+    }
+
+    .statValue {
+        font-weight: 900;
+        font-size: 1.15rem;
+        letter-spacing: .2px;
+    }
+
+    .tierPill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(0,0,0,.10);
+        background: rgba(255,255,255,.70);
+        color: rgba(0,0,0,.72);
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+        .tierPill.bronze {
+            box-shadow: inset 0 0 0 999px rgba(205,127,50,.10);
+        }
+
+        .tierPill.silver {
+            box-shadow: inset 0 0 0 999px rgba(160,170,185,.18);
+        }
+
+        .tierPill.gold {
+            box-shadow: inset 0 0 0 999px rgba(255,215,0,.14);
+        }
+
+    .barWrap {
+        margin-top: 10px;
+        border: 1px solid rgba(0,0,0,.10);
+        background: rgba(0,0,0,.03);
+        border-radius: 999px;
+        overflow: hidden;
+        height: 12px;
+    }
+
+    .barFill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent2));
+        width: 0%;
+        transition: width .25s ease;
+    }
+
+    .barMeta {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: .9rem;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .headRow {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        padding: 14px 14px 0;
+    }
+
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(0,0,0,.10);
+        background: rgba(255,255,255,.70);
+        color: rgba(0,0,0,.70);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        padding: 14px;
+    }
+
+    @@media (max-width: 1100px) {
+        .grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 620px) {
+        .grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .achCard {
+        border-radius: 18px;
+        border: 1px solid rgba(0,0,0,.10);
+        background: rgba(255,255,255,.90);
+        box-shadow: 0 10px 24px rgba(0,0,0,.06);
+        overflow: hidden;
+        min-width: 0;
+        opacity: .65;
+        filter: grayscale(.9);
+    }
+
+    .top {
+        display: flex;
+        gap: 12px;
+        padding: 12px;
+        align-items: center;
+    }
+
+    .icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        background: rgba(236,72,153,.10);
+        border: 1px solid rgba(236,72,153,.22);
+        flex: 0 0 auto;
+    }
+
+        .icon i {
+            font-size: 1.35rem;
+            color: rgba(0,0,0,.72);
+        }
+
+    .txt {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .name {
+        font-weight: 900;
+        margin: 0;
+        line-height: 1.15;
+    }
+
+    .desc {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: .92rem;
+        line-height: 1.25;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px 12px;
+        border-top: 1px solid rgba(0,0,0,.06);
+        background: rgba(236,72,153,.03);
+        flex-wrap: wrap;
+    }
+
+    .tier {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-weight: 900;
+        border: 1px solid rgba(0,0,0,.10);
+        background: rgba(255,255,255,.70);
+        color: rgba(0,0,0,.72);
+        white-space: nowrap;
+    }
+
+        .tier .pts {
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(0,0,0,.10);
+            background: rgba(0,0,0,.03);
+            font-weight: 900;
+        }
+
+    .state {
+        font-weight: 900;
+        color: rgba(0,0,0,.70);
+        white-space: nowrap;
+    }
+
+    .empty {
+        padding: 14px;
+        color: var(--muted);
+    }
+</style>
+
+<div class="pageWrap">
+    <div class="topbar">
+        <div class="title">
+            <h2>Achievements</h2>
+            <div class="sub">Steam inspired achievements. Earn them by buying tickets and attending events.</div>
+        </div>
+        <div class="chip">
+            @userEmail
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="alert alert-danger mb-3">@error</div>
+    }
+
+    <!-- Level and tier at the top -->
+    <div class="card">
+        <div class="pad">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                <div style="font-weight:900; font-size:1.05rem;">Level status</div>
+                <span class="tierPill @tierClass">@tierName tier</span>
+            </div>
+
+            <div class="row2">
+                <div class="statBox">
+                    <div class="statLabel">Level</div>
+                    <div class="statValue">@currentLevel</div>
+                </div>
+                <div class="statBox">
+                    <div class="statLabel">Total points</div>
+                    <div class="statValue">@totalPoints</div>
+                </div>
+            </div>
+
+            <div class="barWrap">
+                <div class="barFill" style="width:@($"{progressPct:0.##}%")"></div>
+            </div>
+
+            <div class="barMeta">
+                <span>@progressText</span>
+                <span>@nextText</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Achievements list -->
+    <div class="card">
+        <div class="headRow">
+            <div style="font-weight:900;">Achievement list</div>
+            <div class="pill">@($"{rows.Count} total")</div>
+        </div>
+
+        @if (rows.Count == 0)
+        {
+            <div class="empty">No achievements have been created yet.</div>
+        }
+        else
+        {
+            <div class="grid">
+                @foreach (var a in rows)
+                {
+                    <div class="achCard">
+                        <div class="top">
+                            <div class="icon">
+                                <i class="@(string.IsNullOrWhiteSpace(a.IconCss) ? "bi bi-trophy-fill" : a.IconCss)"></i>
+                            </div>
+                            <div class="txt">
+                                <div class="name">@a.Name</div>
+                                <div class="desc">@a.Description</div>
+                            </div>
+                        </div>
+
+                        <div class="foot">
+                            <span class="tier">
+                                @a.TierName
+                                <span class="pts">+@a.Points</span>
+                            </span>
+                            <span class="state">Locked</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string? error;
+
+    private string userId = "";
+    private string userEmail = "User";
+
+    private int totalPoints;
+    private int currentLevel = 1;
+    private int nextLevel = 1;
+    private int pointsIntoLevel;
+    private int pointsNeeded;
+    private double progressPct;
+    private string progressText = "0 / 0 pts";
+    private string nextText = "Next level: 2";
+
+    private string tierName = "Bronze";
+    private string tierClass = "bronze";
+
+    private List<RowVm> rows = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+
+            userId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            userEmail = user.FindFirstValue(ClaimTypes.Email) ?? user.Identity?.Name ?? "User";
+
+            await LoadLevelStatus();
+            await LoadAchievementList();
+        }
+        catch
+        {
+            error = "Failed to load achievements.";
+        }
+    }
+
+    private async Task LoadLevelStatus()
+    {
+        var up = await Db.UserPoints.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == userId);
+        totalPoints = up?.TotalPoints ?? 0;
+
+        var levels = await Db.LevelDefinitions.AsNoTracking()
+            .OrderBy(x => x.PointsRequired)
+            .ToListAsync();
+
+        if (levels.Count == 0)
+        {
+            currentLevel = 1;
+            nextLevel = 2;
+            pointsIntoLevel = totalPoints;
+            pointsNeeded = Math.Max(1, totalPoints);
+            progressPct = 0;
+            progressText = $"{pointsIntoLevel} / {pointsNeeded} pts";
+            nextText = $"Next level: {nextLevel}";
+            ApplyTierFromLevel();
+            return;
+        }
+
+        var current = levels.Where(x => x.PointsRequired <= totalPoints).LastOrDefault() ?? levels.First();
+        currentLevel = current.LevelNumber;
+
+        var next = levels.FirstOrDefault(x => x.PointsRequired > totalPoints);
+        if (next == null)
+        {
+            nextLevel = currentLevel;
+            pointsIntoLevel = totalPoints - current.PointsRequired;
+            pointsNeeded = Math.Max(1, pointsIntoLevel);
+            progressPct = 100;
+            progressText = "Max level";
+            nextText = "Max level";
+            ApplyTierFromLevel();
+            return;
+        }
+
+        nextLevel = next.LevelNumber;
+
+        var basePts = current.PointsRequired;
+        var nextPts = next.PointsRequired;
+
+        pointsIntoLevel = totalPoints - basePts;
+        pointsNeeded = Math.Max(1, nextPts - basePts);
+
+        progressPct = Math.Clamp(pointsIntoLevel * 100.0 / pointsNeeded, 0, 100);
+        progressText = $"{pointsIntoLevel} / {pointsNeeded} pts";
+        nextText = $"Next level: {nextLevel}";
+
+        ApplyTierFromLevel();
+    }
+
+    private void ApplyTierFromLevel()
+    {
+        if (currentLevel >= 10)
+        {
+            tierName = "Gold";
+            tierClass = "gold";
+            return;
+        }
+
+        if (currentLevel >= 5)
+        {
+            tierName = "Silver";
+            tierClass = "silver";
+            return;
+        }
+
+        tierName = "Bronze";
+        tierClass = "bronze";
+    }
+
+    private async Task LoadAchievementList()
+    {
+        var list = await Db.Achievements
+            .AsNoTracking()
+            .Include(a => a.Tiers)
+            .Where(a => a.IsActive)
+            .OrderBy(a => a.Name)
+            .ToListAsync();
+
+        rows = list.Select(a =>
+        {
+            var tier = a.Tiers?.Where(t => t.IsActive)
+                .OrderByDescending(t => t.SortOrder)
+                .FirstOrDefault();
+
+            return new RowVm
+            {
+                AchievementId = a.AchievementId,
+                Name = a.Name ?? "",
+                Description = a.Description ?? "",
+                IconCss = string.IsNullOrWhiteSpace(a.IconCss) ? "bi bi-trophy-fill" : a.IconCss!,
+                TierName = tier?.TierName ?? "Bronze",
+                Points = tier?.PointsAwarded ?? 0
+            };
+        }).ToList();
+    }
+
+    private class RowVm
+    {
+        public int AchievementId { get; set; }
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string IconCss { get; set; } = "";
+        public string TierName { get; set; } = "";
+        public int Points { get; set; }
+    }
+}

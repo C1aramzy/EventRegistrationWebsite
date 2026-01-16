@@ -1,0 +1,320 @@
+﻿@page "/my-vouchers"
+@rendermode InteractiveServer
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@using EventRegistrationWebsite.Models.voucher
+
+@attribute [Authorize]
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+
+
+<style>
+    :root {
+        --bg: #fff5f8;
+        --card: #ffffff;
+        --border: rgba(236,72,153,.18);
+        --soft: rgba(236,72,153,.08);
+        --accent: #ec4899;
+        --accent2: #db2777;
+        --text: rgba(0,0,0,.86);
+        --muted: rgba(0,0,0,.56);
+        --shadow: 0 12px 30px rgba(236,72,153,.12);
+    }
+
+    .wrap {
+        min-height: calc(100vh - 80px);
+        padding: 18px 14px 28px;
+        background: radial-gradient(1200px 500px at 20% -10%, rgba(236,72,153,.18), transparent 60%), radial-gradient(900px 420px at 95% 15%, rgba(219,39,119,.16), transparent 55%), var(--bg);
+        color: var(--text);
+    }
+
+    .topbar {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+    }
+
+    h2 {
+        margin: 0;
+        font-weight: 900;
+        letter-spacing: -.01em;
+    }
+
+    .sub {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: .95rem;
+    }
+
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.8);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+        font-weight: 800;
+        color: rgba(0,0,0,.70);
+        white-space: nowrap;
+    }
+
+    .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .headRow {
+        padding: 14px 14px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+    }
+
+    .pill {
+        border-radius: 999px;
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        background: var(--soft);
+        color: var(--accent2);
+        font-weight: 800;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    .grid {
+        padding: 14px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    @@media (max-width: 980px) {
+        .grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 620px) {
+        .grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .vCard {
+        border: 1px solid rgba(0,0,0,.10);
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff, rgba(236,72,153,.06));
+        box-shadow: 0 10px 24px rgba(0,0,0,.06);
+        overflow: hidden;
+        min-width: 0;
+    }
+
+    .vTop {
+        padding: 12px 12px 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+    }
+
+    .vTitle {
+        font-weight: 900;
+        margin: 0;
+        line-height: 1.15;
+    }
+
+    .vDesc {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: .92rem;
+        line-height: 1.25;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .code {
+        margin-top: 8px;
+        font-weight: 900;
+        letter-spacing: .08em;
+        font-size: .82rem;
+        color: rgba(0,0,0,.55);
+    }
+
+    .tag {
+        border-radius: 999px;
+        padding: 6px 10px;
+        border: 1px solid rgba(0,0,0,.10);
+        background: rgba(255,255,255,.75);
+        font-weight: 900;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    .vFoot {
+        padding: 10px 12px 12px;
+        border-top: 1px solid rgba(0,0,0,.06);
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        background: rgba(236,72,153,.03);
+    }
+
+    .muted {
+        color: var(--muted);
+        font-size: .9rem;
+        font-weight: 700;
+    }
+
+    .disabled {
+        opacity: .55;
+        filter: grayscale(1);
+    }
+
+    .empty {
+        padding: 14px;
+        color: var(--muted);
+    }
+</style>
+
+<div class="wrap">
+    <div class="topbar">
+        <div>
+            <h2>Voucher Wallet</h2>
+            <div class="sub">Your available vouchers and rewards.</div>
+        </div>
+        <div class="chip">@userEmail</div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="alert alert-danger mb-3">@error</div>
+    }
+
+    <div class="card">
+        <div class="headRow">
+            <div style="font-weight:900;">My vouchers</div>
+            <div class="pill">@($"{rows.Count} total")</div>
+        </div>
+
+        @if (rows.Count == 0)
+        {
+            <div class="empty">No vouchers in your wallet yet.</div>
+        }
+        else
+        {
+            <div class="grid">
+                @foreach (var r in rows)
+                {
+                    <div class="vCard @(r.IsDisabled ? "disabled" : "")">
+                        <div class="vTop">
+                            <div style="min-width:0;">
+                                <div class="vTitle">@r.Title</div>
+                                <div class="vDesc">@r.Description</div>
+                                <div class="code">@r.Code</div>
+                            </div>
+
+                            <span class="tag">@r.DiscountText</span>
+                        </div>
+
+                        <div class="vFoot">
+                            <span class="muted">@r.ValidityText</span>
+                            <span class="muted">@r.UsageText</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string? error;
+    private string userEmail = "User";
+
+    private List<RowVm> rows = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+
+            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            userEmail = user.FindFirstValue(ClaimTypes.Email) ?? user.Identity?.Name ?? "User";
+
+            rows = await Db.UserVouchers
+                .AsNoTracking()
+                .Include(x => x.Voucher)
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.AddedUtc)
+                .Select(x => new RowVm
+                {
+                    Title = x.Voucher != null ? x.Voucher.Title : "",
+                    Description = x.Voucher != null ? (x.Voucher.Description ?? "") : "",
+                    Code = x.Voucher != null ? x.Voucher.Code : "",
+                    IsDisabled = x.IsDisabled || (x.Voucher != null && !x.Voucher.IsActive),
+                    DiscountText = BuildDiscountText(x.Voucher),
+                    ValidityText = BuildValidityText(x.Voucher),
+                    UsageText = BuildUsageText(x)
+                })
+                .ToListAsync();
+        }
+        catch
+        {
+            error = "Failed to load voucher wallet.";
+        }
+    }
+
+    private static string BuildDiscountText(Voucher? v)
+    {
+        if (v == null) return "";
+        if (v.PercentOff.HasValue && v.PercentOff.Value > 0) return $"{v.PercentOff.Value:0.##}% off";
+        if (v.AmountOff.HasValue && v.AmountOff.Value > 0) return $"${v.AmountOff.Value:0.##} off";
+        return "Voucher";
+    }
+
+    private static string BuildValidityText(Voucher? v)
+    {
+        if (v == null) return "";
+        var start = v.StartUtc.ToLocalTime().ToString("dd MMM yyyy");
+        var end = v.EndUtc.ToLocalTime().ToString("dd MMM yyyy");
+        return $"{start} - {end}";
+    }
+
+    private static string BuildUsageText(UserVoucher uv)
+    {
+        return $"Used {uv.RedeemedCount} time(s)";
+    }
+
+    private class RowVm
+    {
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Code { get; set; } = "";
+        public string DiscountText { get; set; } = "";
+        public string ValidityText { get; set; } = "";
+        public string UsageText { get; set; } = "";
+        public bool IsDisabled { get; set; }
+    }
+}

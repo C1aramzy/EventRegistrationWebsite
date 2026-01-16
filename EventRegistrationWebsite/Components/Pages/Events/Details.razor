@@ -11,7 +11,6 @@
 @inject NavigationManager Nav
 @inject Microsoft.JSInterop.IJSRuntime JS
 
-@attribute [Authorize(Roles = "Admin")]
 
 @if (eventItem == null)
 {
@@ -214,7 +213,7 @@ else
                 @if (hasVoucher)
                 {
                     <div class="alert alert-success mt-3 mb-0">
-                        <div class="fw-semibold">You unlocked a voucher</div>
+                        <div class="fw-semibold">You unlocked a voucher!</div>
                         <div class="mt-1">Code: <span class="fw-semibold">@voucherCode</span></div>
                         <div class="small mt-1">@voucherEffectText</div>
                     </div>
@@ -280,7 +279,6 @@ else
                             <div class="fw-semibold">@eventItem.StartDate.ToString("dd MMM yyyy") @FormatTime(eventItem.StartTime)</div>
                         </div>
                         <div class="col-12 col-md-6">
-                            <div class="text-muted small">End</div>
                             <div class="text-muted small">End</div>
                             <div class="fw-semibold">@eventItem.EndDate.ToString("dd MMM yyyy") @FormatTime(eventItem.EndTime)</div>
                         </div>
@@ -382,23 +380,67 @@ else
                         </div>
 
                         <div class="border rounded p-3 bg-light">
-                            <div class="d-flex justify-content-between">
-                                <div class="text-muted">Total (mock)</div>
-                                <div class="fw-bold">SGD @TotalPrice.ToString("0.00")</div>
-                            </div>
-
-                            @if (hasVoucher)
+                            @if (eventItem.IsOnline)
                             {
-                                <div class="mt-2 small text-success">
-                                    Voucher applied in demo display.
+                                <div class="fw-semibold">Online event</div>
+
+                                @if (!string.IsNullOrWhiteSpace(eventItem.OnlineEventUrl))
+                                {
+                                    <div class="small text-muted mt-1">Join link</div>
+                                    <a class="fw-semibold" href="@eventItem.OnlineEventUrl" target="_blank">
+                                        @eventItem.OnlineEventUrl
+                                    </a>
+                                }
+                                else
+                                {
+                                    <div class="text-muted small mt-1">No link provided.</div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="fw-semibold mb-2">How do you want to get there?</div>
+
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-6">
+                                        <div class="d-grid gap-2">
+                                            <a class="btn btn-outline-secondary" href="@DirectionsLink("driving")" target="_blank">
+                                                🚗 Driving
+                                            </a>
+                                            <a class="btn btn-outline-secondary" href="@DirectionsLink("transit")" target="_blank">
+                                                🚌 Public transport
+                                            </a>
+                                            <a class="btn btn-outline-secondary" href="@DirectionsLink("bicycling")" target="_blank">
+                                                🚲 Biking
+                                            </a>
+                                            <a class="btn btn-outline-secondary" href="@DirectionsLink("walking")" target="_blank">
+                                                🚶 Walking
+                                            </a>
+                                        </div>
+
+                                        <div class="small text-muted mt-2">
+                                            Opens Google Maps directions from your current location.
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12 col-md-6">
+                                        <div class="border rounded bg-white p-3 h-100 d-flex align-items-center justify-content-center"
+                                             style="min-height: 180px;">
+                                            <div class="text-center">
+                                                <div class="text-muted small mb-2">Map</div>
+                                                <div class="d-flex gap-2 justify-content-center flex-wrap">
+                                                    <a class="btn btn-primary" href="@OneMapLink" target="_blank">Show map</a>
+                                                    <a class="btn btn-outline-secondary" href="@GoogleMapsLink" target="_blank">Google Maps</a>
+                                                </div>
+                                                <div class="small text-muted mt-2">
+                                                    Uses your existing map links.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             }
-
-                            <button class="btn btn-primary w-100 mt-3" disabled>Register (mock)</button>
-                            <div class="small text-muted mt-2">
-                                Registration and payment flow can be added later.
-                            </div>
                         </div>
+
                     }
                 </div>
             </div>
@@ -809,4 +851,29 @@ else
         if (v > max) return max;
         return v;
     }
+    private string DirectionsLink(string mode)
+    {
+        if (eventItem == null) return "/events";
+
+        var dest = DestinationQuery;
+        return $"https://www.google.com/maps/dir/?api=1&origin=My+Location&destination={dest}&travelmode={mode}";
+    }
+
+    private string DestinationQuery
+    {
+        get
+        {
+            if (eventItem == null) return "";
+
+            var parts = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(eventItem.VenueName)) parts.Add(eventItem.VenueName);
+            if (!string.IsNullOrWhiteSpace(eventItem.VenueAddress)) parts.Add(eventItem.VenueAddress);
+            if (!string.IsNullOrWhiteSpace(eventItem.PostalCode)) parts.Add(eventItem.PostalCode);
+
+            var raw = string.Join(" ", parts);
+            return Uri.EscapeDataString(raw);
+        }
+    }
+
 }

@@ -1,0 +1,680 @@
+﻿@page "/pay/gateway/{PaymentTransactionId:int}"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@using System.Security.Claims
+
+// VOUCHER ADD
+@using EventRegistrationWebsite.Models.voucher
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+
+@attribute [Authorize]
+
+@inject ApplicationDbContext Db
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+
+// VOUCHER ADD
+@inject ProtectedLocalStorage LocalStore
+
+<h3 class="mb-3">Secure payment</h3>
+
+@if (isLoading)
+{
+    <div class="alert alert-info">Loading payment…</div>
+}
+else if (!string.IsNullOrWhiteSpace(loadError))
+{
+    <div class="alert alert-danger">@loadError</div>
+}
+else
+{
+    <div class="row g-3">
+        <div class="col-12 col-lg-5">
+            <div class="card">
+                <div class="card-body">
+                    <div class="fw-semibold mb-2">Order summary</div>
+
+                    <div class="d-flex justify-content-between">
+                        <span>Total</span>
+                        <span class="fw-semibold">@FormatMoney(PayAmount)</span>
+                    </div>
+
+                    @* VOUCHER ADD: show breakdown *@
+                    @if (voucherDiscount > 0)
+                    {
+                        <div class="d-flex justify-content-between text-muted small mt-1">
+                            <span>Subtotal</span>
+                            <span>@FormatMoney(baseAmount)</span>
+                        </div>
+                        <div class="d-flex justify-content-between text-muted small">
+                            <span>Voucher discount</span>
+                            <span>-@FormatMoney(voucherDiscount)</span>
+                        </div>
+                    }
+
+                    <div class="text-muted small mt-2">
+                        Reference: @tx.ReferenceCode
+                    </div>
+
+                    <hr />
+
+                    <div class="text-muted small">
+                        Demo gateway for project use. No real payment is processed.
+                    </div>
+
+                    @if (tx.Status != "Pending")
+                    {
+                        <div class="alert alert-warning mt-3 mb-0">
+                            This payment is already @tx.Status.
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* VOUCHER ADD: Voucher selector card *@
+            <div class="card mt-3">
+                <div class="card-body">
+                    <div class="fw-semibold mb-2">Voucher</div>
+
+                    @if (!string.IsNullOrWhiteSpace(voucherError))
+                    {
+                        <div class="alert alert-warning mb-2">@voucherError</div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(voucherInfo))
+                    {
+                        <div class="alert alert-info mb-2">@voucherInfo</div>
+                    }
+
+                    <div class="mb-2">
+                        <label class="form-label">Select from wallet</label>
+                        <select class="form-select"
+                                @bind="selectedUserVoucherId"
+                                disabled="@(!CanAct || isApplyingVoucher)">
+                            <option value="">No voucher</option>
+                            @foreach (var uv in walletVouchers)
+                            {
+                                <option value="@uv.UserVoucherId">
+                                    @(uv.Voucher != null ? $"{uv.Voucher.Title} ({uv.Voucher.Code})" : $"Voucher #{uv.UserVoucherId}")
+                                </option>
+                            }
+                        </select>
+                        <div class="text-muted small mt-1">
+                            Only active and valid vouchers are shown.
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary"
+                                type="button"
+                                @onclick="ApplySelectedVoucher"
+                                disabled="@(!CanAct || isApplyingVoucher)">
+                            Apply
+                        </button>
+
+                        <button class="btn btn-outline-secondary"
+                                type="button"
+                                @onclick="ClearVoucher"
+                                disabled="@(!CanAct || isApplyingVoucher)">
+                            Clear
+                        </button>
+                    </div>
+
+                    @if (isApplyingVoucher)
+                    {
+                        <div class="text-muted small mt-2">Applying voucher…</div>
+                    }
+                </div>
+            </div>
+
+            <div class="d-grid mt-3">
+                <button class="btn btn-outline-secondary" @onclick="CancelPayment" disabled="@(!CanAct)">
+                    Cancel and return
+                </button>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-7">
+            <div class="card">
+                <div class="card-body">
+
+                    <div class="d-flex gap-2 mb-3">
+                        <button class="btn @(method == "Card" ? "btn-primary" : "btn-outline-primary")"
+                                @onclick='() => SwitchMethod("Card")'
+                                disabled="@(!CanAct)">
+                            Card
+                        </button>
+
+                        <button class="btn @(method == "PayNow" ? "btn-primary" : "btn-outline-primary")"
+                                @onclick='() => SwitchMethod("PayNow")'
+                                disabled="@(!CanAct)">
+                            PayNow
+                        </button>
+                    </div>
+
+                    @if (method == "Card")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Card number</label>
+                            <input class="form-control"
+                                   placeholder="4242 4242 4242 4242"
+                                   @bind="cardNumber"
+                                   @bind:event="oninput"
+                                   disabled="@(!CanAct)" />
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label">Expiry</label>
+                                <input class="form-control"
+                                       placeholder="MM/YY"
+                                       @bind="expiry"
+                                       @bind:event="oninput"
+                                       disabled="@(!CanAct)" />
+                            </div>
+
+                            <div class="col-6">
+                                <label class="form-label">CVC</label>
+                                <input class="form-control"
+                                       placeholder="123"
+                                       @bind="cvc"
+                                       @bind:event="oninput"
+                                       disabled="@(!CanAct)" />
+                            </div>
+                        </div>
+
+                        <div class="form-check mt-3">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="otpCheck"
+                                   @bind="useOtp"
+                                   disabled="@(!CanAct)" />
+                            <label class="form-check-label" for="otpCheck">
+                                Require OTP verification 
+                            </label>
+                        </div>
+
+                        @if (useOtp)
+                        {
+                            <div class="mt-2">
+                                <label class="form-label">OTP</label>
+                                <input class="form-control"
+                                       placeholder="123456"
+                                       @bind="otp"
+                                       @bind:event="oninput"
+                                       disabled="@(!CanAct)" />
+                                <div class="text-muted small mt-1">
+                                    Demo OTP is 123456
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="alert alert-info">
+                            Scan the PayNow QR.
+                        </div>
+
+                        <div class="border rounded p-3 text-center">
+                            <div class="fw-semibold">PayNow QR</div>
+
+                            <img src="@PayNowQrUrl"
+                                 alt="PayNow QR"
+                                 class="img-fluid mt-2"
+                                 style="max-width: 240px;" />
+
+                            <div class="text-muted small mt-2">
+                                Amount: @FormatMoney(PayAmount)
+                            </div>
+
+                            <div class="text-muted small">
+                                Reference: @tx.ReferenceCode
+                            </div>
+                        </div>
+
+                        <div class="form-check mt-3">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="paynowConfirm"
+                                   @bind="paynowConfirmed"
+                                   disabled="@(!CanAct)" />
+                            <label class="form-check-label" for="paynowConfirm">
+                                I have completed the transfer
+                            </label>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(formError))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@formError</div>
+                    }
+
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-success" @onclick="ConfirmPayment" disabled="@(!CanAct)">
+                            Confirm payment
+                        </button>
+
+                        <button class="btn btn-outline-danger" @onclick="SimulateFailure" disabled="@(!CanAct)">
+                            Mark as failed
+                        </button>
+                    </div>
+
+                    @if (isProcessing)
+                    {
+                        <div class="mt-3 alert alert-secondary">
+                            Processing payment…
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int PaymentTransactionId { get; set; }
+
+    private bool isLoading = true;
+    private bool isProcessing;
+    private string? loadError;
+    private string? formError;
+
+    private PaymentTransaction tx = new();
+    private OrderDraft draft = new();
+
+    private string method = "Card";
+
+    private string cardNumber = "";
+    private string expiry = "";
+    private string cvc = "";
+    private bool useOtp;
+    private string otp = "";
+
+    private bool paynowConfirmed;
+
+    private bool CanAct => !isLoading && !isProcessing && tx.Status == "Pending";
+
+    // VOUCHER ADD
+    private List<UserVoucher> walletVouchers = new();
+    private int? selectedUserVoucherId;
+    private bool isApplyingVoucher;
+    private string? voucherError;
+    private string? voucherInfo;
+
+    // VOUCHER ADD: keep a stable subtotal from DB
+    private decimal baseAmount;
+    private decimal voucherDiscount;
+
+    // VOUCHER ADD: the final amount we show + charge
+    private decimal PayAmount
+    {
+        get
+        {
+            var amt = baseAmount - voucherDiscount;
+            if (amt < 0) amt = 0;
+            return amt;
+        }
+    }
+
+    private string PayNowQrUrl
+    {
+        get
+        {
+            // Simple QR payload for demo:
+            // includes amount + ref so it looks real and consistent.
+            var payload = $"PAYNOW|AMT={PayAmount:0.00}|REF={tx.ReferenceCode}";
+            var safe = Uri.EscapeDataString(payload);
+            return $"https://api.qrserver.com/v1/create-qr-code/?size=260x260&data={safe}";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var foundTx = await Db.PaymentTransactions.FirstOrDefaultAsync(x => x.PaymentTransactionId == PaymentTransactionId);
+            if (foundTx == null)
+            {
+                loadError = "Payment not found.";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(userId) || foundTx.UserId != userId)
+            {
+                loadError = "Access denied.";
+                return;
+            }
+
+            tx = foundTx;
+
+            var foundDraft = await Db.OrderDrafts.FirstOrDefaultAsync(x => x.OrderDraftId == tx.OrderDraftId && x.UserId == userId);
+            if (foundDraft == null)
+            {
+                loadError = "Order draft not found.";
+                return;
+            }
+
+            draft = foundDraft;
+
+            if (string.IsNullOrWhiteSpace(tx.ReferenceCode))
+            {
+                tx.ReferenceCode = MakeRef();
+                await Db.SaveChangesAsync();
+            }
+
+            if (!string.IsNullOrWhiteSpace(tx.PaymentMethod))
+            {
+                method = tx.PaymentMethod;
+            }
+
+            // VOUCHER ADD: snapshot base amount from DB transaction
+            baseAmount = tx.Amount;
+            voucherDiscount = 0;
+
+            // VOUCHER ADD: load wallet vouchers (active + valid)
+            await LoadWalletVouchers(userId);
+
+            // VOUCHER ADD: if you previously selected a voucher for this payment id, restore it
+            await RestoreVoucherSelectionIfAny();
+        }
+        catch
+        {
+            loadError = "Unable to load payment.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SwitchMethod(string m)
+    {
+        method = m;
+        formError = null;
+    }
+
+    private async Task ConfirmPayment()
+    {
+        formError = null;
+
+        if (method == "Card")
+        {
+            if (string.IsNullOrWhiteSpace(cardNumber) || cardNumber.Length < 12)
+            {
+                formError = "Enter a valid card number (demo).";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(expiry) || expiry.Length < 4)
+            {
+                formError = "Enter expiry in MM/YY (demo).";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(cvc) || cvc.Length < 3)
+            {
+                formError = "Enter a valid CVC (demo).";
+                return;
+            }
+
+            if (useOtp && otp != "123456")
+            {
+                formError = "Invalid OTP. Demo OTP is 123456.";
+                return;
+            }
+        }
+        else
+        {
+            if (!paynowConfirmed)
+            {
+                formError = "Please confirm you completed the PayNow transfer.";
+                return;
+            }
+        }
+
+        await ProcessAndRedirect(true);
+    }
+
+    private async Task SimulateFailure()
+    {
+        await ProcessAndRedirect(false);
+    }
+
+    private async Task CancelPayment()
+    {
+        if (tx.Status == "Pending")
+        {
+            tx.Status = "Cancelled";
+            tx.PaymentMethod = method;
+            await Db.SaveChangesAsync();
+        }
+
+        Nav.NavigateTo($"/checkout/cancel?paymentId={PaymentTransactionId}", true);
+    }
+
+    private async Task ProcessAndRedirect(bool success)
+    {
+        if (!CanAct) return;
+
+        isProcessing = true;
+
+        try
+        {
+            // VOUCHER ADD: set final charged amount into PaymentTransaction before we finalise
+            tx.Amount = PayAmount;
+
+            tx.PaymentMethod = method;
+            await Db.SaveChangesAsync();
+
+            await Task.Delay(1500);
+
+            tx.Status = success ? "Success" : "Failed";
+            await Db.SaveChangesAsync();
+
+            // VOUCHER ADD: redeem voucher only on success
+            if (success)
+            {
+                await RedeemVoucherIfAny();
+                Nav.NavigateTo($"/checkout/success?paymentId={PaymentTransactionId}", true);
+            }
+            else
+            {
+                Nav.NavigateTo($"/checkout/cancel?paymentId={PaymentTransactionId}", true);
+            }
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private static string MakeRef()
+    {
+        var y = DateTime.UtcNow.Year;
+        var r = Random.Shared.Next(100000, 999999);
+        return $"PAY{y}{r}";
+    }
+
+    private static string FormatMoney(decimal amount)
+    {
+        return $"SGD {amount:0.00}";
+    }
+
+    // =========================
+    // VOUCHER ADD: helpers
+    // =========================
+
+    private async Task LoadWalletVouchers(string userId)
+    {
+        voucherError = null;
+        voucherInfo = null;
+
+        try
+        {
+            var now = DateTime.UtcNow;
+
+            walletVouchers = await Db.UserVouchers
+                .Include(x => x.Voucher)
+                .Where(x =>
+                    x.UserId == userId &&
+                    !x.IsDisabled &&
+                    x.Voucher != null &&
+                    x.Voucher.IsActive &&
+                    x.Voucher.StartUtc <= now &&
+                    x.Voucher.EndUtc >= now
+                )
+                .OrderByDescending(x => x.AddedUtc)
+                .ToListAsync();
+
+            if (walletVouchers.Count == 0)
+            {
+                voucherInfo = "No active vouchers in your wallet.";
+            }
+        }
+        catch
+        {
+            voucherError = "Failed to load voucher wallet.";
+            walletVouchers = new();
+        }
+    }
+
+    private async Task RestoreVoucherSelectionIfAny()
+    {
+        try
+        {
+            var stored = await LocalStore.GetAsync<int?>($"pay_voucher_{PaymentTransactionId}");
+            if (stored.Success && stored.Value.HasValue)
+            {
+                selectedUserVoucherId = stored.Value;
+
+                // Try auto apply if it still exists
+                await ApplySelectedVoucher();
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+    }
+
+    private async Task ApplySelectedVoucher()
+    {
+        if (!CanAct) return;
+
+        voucherError = null;
+        voucherInfo = null;
+
+        if (!selectedUserVoucherId.HasValue)
+        {
+            voucherDiscount = 0;
+            await SaveVoucherSelection(null);
+            return;
+        }
+
+        isApplyingVoucher = true;
+
+        try
+        {
+            var uv = walletVouchers.FirstOrDefault(x => x.UserVoucherId == selectedUserVoucherId.Value);
+            if (uv == null || uv.Voucher == null)
+            {
+                voucherDiscount = 0;
+                voucherError = "Voucher not found in wallet.";
+                await SaveVoucherSelection(null);
+                return;
+            }
+
+            // Compute discount
+            voucherDiscount = ComputeDiscount(baseAmount, uv.Voucher);
+
+            await SaveVoucherSelection(selectedUserVoucherId.Value);
+
+            if (voucherDiscount > 0)
+            {
+                voucherInfo = "Voucher applied.";
+            }
+            else
+            {
+                voucherInfo = "Voucher applied. No discount value found.";
+            }
+        }
+        finally
+        {
+            isApplyingVoucher = false;
+        }
+    }
+
+    private async Task ClearVoucher()
+    {
+        voucherDiscount = 0;
+        selectedUserVoucherId = null;
+        voucherError = null;
+        voucherInfo = null;
+
+        await SaveVoucherSelection(null);
+    }
+
+    private async Task SaveVoucherSelection(int? userVoucherId)
+    {
+        try
+        {
+            await LocalStore.SetAsync($"pay_voucher_{PaymentTransactionId}", userVoucherId);
+        }
+        catch
+        {
+            // ignore
+        }
+    }
+
+    private static decimal ComputeDiscount(decimal subtotal, Voucher v)
+    {
+        decimal d = 0;
+
+        if (v.PercentOff.HasValue && v.PercentOff.Value > 0)
+        {
+            d = Math.Round(subtotal * (v.PercentOff.Value / 100m), 2);
+        }
+        else if (v.AmountOff.HasValue && v.AmountOff.Value > 0)
+        {
+            d = Math.Round(v.AmountOff.Value, 2);
+        }
+
+        if (d < 0) d = 0;
+        if (d > subtotal) d = subtotal;
+        return d;
+    }
+
+    private async Task RedeemVoucherIfAny()
+    {
+        if (!selectedUserVoucherId.HasValue) return;
+
+        try
+        {
+            var uvId = selectedUserVoucherId.Value;
+
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(userId)) return;
+
+            var uv = await Db.UserVouchers
+                .FirstOrDefaultAsync(x => x.UserVoucherId == uvId && x.UserId == userId);
+
+            if (uv == null) return;
+
+            uv.RedeemedCount += 1;
+            await Db.SaveChangesAsync();
+        }
+        catch
+        {
+            // keep silent so payment success flow never breaks
+        }
+    }
+}

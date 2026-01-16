@@ -1,57 +1,233 @@
-﻿@page "/home"
-@using EventRegistrationWebsite.Models
-@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+﻿@page "/admin"
+@rendermode InteractiveServer
 
-<h3>Events</h3>
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 
-<p>
-    <a href="/events/create">Create New Event</a>
-</p>
+@inject NavigationManager Nav
 
-@if (events == null)
-{
-    <p>Loading events...</p>
-}
-else if (!events.Any())
-{
-    <p>No events found.</p>
-}
-else
-{
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Title</th>
-                <th>Start</th>
-                <th>End</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var e in events)
-            {
-                <tr>
-                    <td>@e.Title</td>
-                    <td>@e.StartDate.ToShortDateString()</td>
-                    <td>@e.EndDate.ToShortDateString()</td>
-                    <td>@e.ComputedStatus</td>
-                    <td>
-                        <a href="/events/details/@e.EventID">View</a> |
-                        <a href="/events/edit/@e.EventID">Edit</a> |
-                        <a href="/events/delete/@e.EventID">Delete</a>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+<style>
+    :root {
+        --pink-bg: #fff5f8;
+        --pink-card: #ffffff;
+        --pink-border: rgba(236, 72, 153, .18);
+        --pink-soft: rgba(236, 72, 153, .08);
+        --pink-accent: #ec4899;
+        --pink-accent-dark: #db2777;
+        --text-main: #2b2b2b;
+        --text-muted: rgba(0,0,0,.55);
+    }
+
+    .dashWrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px 20px 34px 20px;
+    }
+
+    .dashTitle {
+        font-size: 42px;
+        font-weight: 800;
+        margin: 0;
+        letter-spacing: .2px;
+        color: var(--text-main);
+    }
+
+    .dashSub {
+        margin-top: 6px;
+        color: var(--text-muted);
+        max-width: 760px;
+        font-size: 14px;
+    }
+
+    .dashGrid {
+        margin-top: 20px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+    }
+
+    @@media (max-width: 1050px) {
+        .dashGrid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 640px) {
+        .dashGrid {
+            grid-template-columns: 1fr;
+        }
+
+        .dashTitle {
+            font-size: 34px;
+        }
+    }
+
+    .dashCard {
+        border-radius: 20px;
+        border: 1px solid var(--pink-border);
+        background: linear-gradient(180deg, #ffffff, var(--pink-bg));
+        box-shadow: 0 12px 30px rgba(236, 72, 153, .12);
+        padding: 18px;
+        cursor: pointer;
+        transition: transform .12s ease, box-shadow .12s ease;
+        min-height: 150px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+        .dashCard:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 18px 40px rgba(236, 72, 153, .18);
+        }
+
+    .dashTop {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .dashIcon {
+        width: 46px;
+        height: 46px;
+        border-radius: 16px;
+        background: var(--pink-soft);
+        color: var(--pink-accent);
+        display: grid;
+        place-items: center;
+        font-size: 22px;
+        flex-shrink: 0;
+    }
+
+    .dashName {
+        font-weight: 800;
+        font-size: 16px;
+        margin: 0;
+        color: var(--text-main);
+    }
+
+    .dashDesc {
+        margin-top: 6px;
+        color: var(--text-muted);
+        font-size: 13px;
+        line-height: 1.4;
+    }
+
+    .dashBtn {
+        margin-top: 16px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 13px;
+        color: var(--pink-accent-dark);
+    }
+
+    .hintRow {
+        margin-top: 14px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        font-size: 12px;
+    }
+
+    .pill {
+        border-radius: 999px;
+        padding: 6px 12px;
+        border: 1px solid var(--pink-border);
+        background: var(--pink-soft);
+        color: var(--pink-accent-dark);
+        font-weight: 600;
+    }
+</style>
+
+<div class="dashWrap">
+    <h1 class="dashTitle">Admin Home</h1>
+    <div class="dashSub">
+        Welcome back. 
+        You are logged in as Admin. Use this dashboard to manage events, bundles, refunds and achievements.
+    </div>
+
+    <div class="hintRow">
+        <div class="pill">Admin only</div>
+        <div class="pill">Quick access</div>
+    </div>
+
+    <div class="dashGrid">
+
+        <div class="dashCard" @onclick='() => Go("/events")'>
+            <div class="dashTop">
+                <div>
+                    <p class="dashName">Manage Events</p>
+                    <div class="dashDesc">Create, edit and publish events.</div>
+                </div>
+                <div class="dashIcon">📅</div>
+            </div>
+            <div class="dashBtn">Open →</div>
+        </div>
+
+        <div class="dashCard" @onclick='() => Go("/packages")'>
+            <div class="dashTop">
+                <div>
+                    <p class="dashName">Manage Packages</p>
+                    <div class="dashDesc">Create Klook style event bundles.</div>
+                </div>
+                <div class="dashIcon">🎁</div>
+            </div>
+            <div class="dashBtn">Open →</div>
+        </div>
+
+        <div class="dashCard" @onclick='() => Go("/admin/refunds")'>
+            <div class="dashTop">
+                <div>
+                    <p class="dashName">Refund Approvals</p>
+                    <div class="dashDesc">Approve or reject refund requests.</div>
+                </div>
+                <div class="dashIcon">💸</div>
+            </div>
+            <div class="dashBtn">Open →</div>
+        </div>
+
+        <div class="dashCard" @onclick='() => Go("/admin/achievement-studio")'>
+            <div class="dashTop">
+                <div>
+                    <p class="dashName">Achievement Studio</p>
+                    <div class="dashDesc">Manage Steam style achievements.</div>
+                </div>
+                <div class="dashIcon">🏆</div>
+            </div>
+            <div class="dashBtn">Open →</div>
+        </div>
+
+        <div class="dashCard" @onclick='() => Go("/events/create")'>
+            <div class="dashTop">
+                <div>
+                    <p class="dashName">Create Event</p>
+                    <div class="dashDesc">Quickly add a new event.</div>
+                </div>
+                <div class="dashIcon">➕</div>
+            </div>
+            <div class="dashBtn">Open →</div>
+        </div>
+
+        <div class="dashCard" @onclick='() => Go("/packages/create")'>
+            <div class="dashTop">
+                <div>
+                    <p class="dashName">Create Package</p>
+                    <div class="dashDesc">Build a new bundle deal.</div>
+                </div>
+                <div class="dashIcon">🧩</div>
+            </div>
+            <div class="dashBtn">Open →</div>
+        </div>
+
+    </div>
+</div>
 
 @code {
-    private List<Event>? events;
-
-    protected override void OnInitialized()
+    private void Go(string url)
     {
-        events = Db.Events.ToList();
+        Nav.NavigateTo(url);
     }
 }

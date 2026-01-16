@@ -1,31 +1,40 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
-namespace EventRegistrationWebsite.Models
+namespace EventRegistrationWebsite.Models;
+
+public class Package
 {
-    public class Package
-    {
-        [Key]
-        public int PackageId { get; set; }
+    public int PackageID { get; set; }
 
-        [Required]
-        [StringLength(100)]
-        public string PackageName { get; set; } = string.Empty;
+    [Required]
+    [StringLength(120)]
+    public string PackageName { get; set; } = "";
 
-        [StringLength(500)]
-        public string? Description { get; set; }
+    [StringLength(600)]
+    public string? Description { get; set; }
 
-        [Required]
-        [Column(TypeName = "decimal(10,2)")]
-        public decimal Price { get; set; }
+    [Range(0, 999999)]
+    public decimal Price { get; set; }
 
-        [Required]
-        public int EventID { get; set; }
-        public Event? Event { get; set; }
+    public decimal? OriginalTotalPrice { get; set; }
 
-        public DateTime CreatedOn { get; set; } = DateTime.Now;
-        public DateTime LastUpdatedOn { get; set; } = DateTime.Now;
+    public int MaxPerUser { get; set; } = 0;
 
-    }
+    public bool IsActive { get; set; } = true;
+
+    public int? BundleEventID { get; set; }
+    public Event? BundleEvent { get; set; }
+
+    public DateTime CreatedOn { get; set; } = DateTime.Now;
+    public DateTime LastUpdatedOn { get; set; } = DateTime.Now;
+    public bool IsMysteryPack { get; set; } = false;
+
+    public List<PackageEvent> PackageEvents { get; set; } = new();
+
+    public string? CoverImagePath { get; set; }   // /uploads/packages/xxx.jpg
+    public string? Badge { get; set; }            // "Most Popular", "Best Value", "VIP", "Mystery", null
+
+
+    // IMPORTANT: required because your ApplicationDbContext maps WithMany(p => p.Items)
+    public List<PackageItem> Items { get; set; } = new();
 }
-

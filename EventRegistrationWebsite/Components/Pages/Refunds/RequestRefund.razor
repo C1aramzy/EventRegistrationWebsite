@@ -1,0 +1,196 @@
+﻿@page "/refunds/request/{ticketId:int}"
+@rendermode InteractiveServer
+
+@using System.Security.Claims
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@using EventRegistrationWebsite.Models.Ticket
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+
+@attribute [Authorize]
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<h3 class="mb-3">Request refund</h3>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (loading)
+{
+    <div class="alert alert-info">Loading</div>
+}
+else if (ticket == null || ev == null)
+{
+    <div class="alert alert-warning">Ticket not found</div>
+    <button class="btn btn-outline-secondary" @onclick="Back">Back</button>
+}
+else
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="fw-semibold">@ev.Title</div>
+            <div class="text-muted">@($"{ev.StartDate:dd MMM yyyy} to {ev.EndDate:dd MMM yyyy}")</div>
+            <div class="text-muted mt-2">Ticket ID: @ticket.TicketId</div>
+            <div class="text-muted">Ticket status: @ticket.Status</div>
+        </div>
+    </div>
+
+    @if (alreadyRequested)
+    {
+        <div class="alert alert-info">You already submitted a refund request for this ticket.</div>
+        <button class="btn btn-outline-secondary" @onclick="GoMyRefunds">View my refunds</button>
+        <button class="btn btn-link" @onclick="Back">Back</button>
+    }
+    else if (!canRequest)
+    {
+        <div class="alert alert-warning">Refund cannot be requested for this ticket.</div>
+        <button class="btn btn-link" @onclick="Back">Back</button>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body">
+                <label class="form-label">Reason</label>
+                <textarea class="form-control" rows="4" @bind="reason"></textarea>
+
+                <div class="form-text mt-2">
+                    Examples: Unable to attend, purchased by mistake, schedule conflict.
+                </div>
+
+                <button class="btn btn-danger mt-3" @onclick="Submit" disabled="@submitting">
+                    Submit refund request
+                </button>
+                <button class="btn btn-link mt-3" @onclick="Back">Cancel</button>
+
+                @if (!string.IsNullOrWhiteSpace(success))
+                {
+                    <div class="alert alert-success mt-3">@success</div>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int ticketId { get; set; }
+
+    private bool loading = true;
+    private bool submitting;
+    private string? error;
+    private string? success;
+
+    private Ticket? ticket;
+    private Event? ev;
+
+    private string reason = "";
+    private bool alreadyRequested;
+    private bool canRequest;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                error = "User id not found. Please log in again.";
+                return;
+            }
+
+            ticket = await Db.Tickets.FirstOrDefaultAsync(x => x.TicketId == ticketId && x.UserId == userId);
+            if (ticket == null) return;
+
+            ev = await Db.Events.FirstOrDefaultAsync(x => x.EventID == ticket.EventID);
+
+            alreadyRequested = await Db.RefundRequests.AnyAsync(r =>
+                r.TicketId == ticket.TicketId &&
+                r.UserId == userId &&
+                (r.Status == RefundStatus.Pending || r.Status == RefundStatus.Approved)
+            );
+
+            var status = (ticket.Status ?? "").Trim();
+            canRequest = status == "Active" || status == "Used";
+        }
+        catch
+        {
+            error = "Failed to load ticket.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (ticket == null) return;
+
+        error = null;
+        success = null;
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            error = "Please enter a reason.";
+            return;
+        }
+
+        submitting = true;
+
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                error = "User id not found. Please log in again.";
+                return;
+            }
+
+            var exists = await Db.RefundRequests.AnyAsync(r =>
+                r.TicketId == ticket.TicketId &&
+                r.UserId == userId &&
+                (r.Status == RefundStatus.Pending || r.Status == RefundStatus.Approved)
+            );
+
+            if (exists)
+            {
+                alreadyRequested = true;
+                return;
+            }
+
+            Db.RefundRequests.Add(new RefundRequest
+            {
+                TicketId = ticket.TicketId,
+                UserId = userId,
+                Reason = reason.Trim(),
+                Status = RefundStatus.Pending,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+
+            await Db.SaveChangesAsync();
+
+            success = "Refund request submitted.";
+            alreadyRequested = true;
+        }
+        catch
+        {
+            error = "Failed to submit refund request.";
+        }
+        finally
+        {
+            submitting = false;
+        }
+    }
+
+    private void Back() => Nav.NavigateTo("/my-tickets");
+    private void GoMyRefunds() => Nav.NavigateTo("/my-refunds");
+}

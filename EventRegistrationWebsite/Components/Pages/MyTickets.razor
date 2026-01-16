@@ -1,0 +1,254 @@
+﻿@page "/my-tickets"
+@rendermode InteractiveServer
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+
+@attribute [Authorize]
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<style>
+    .qrBox {
+        border: 1px solid rgba(0,0,0,.12);
+        border-radius: 14px;
+        padding: 14px;
+        text-align: center;
+        background: #fff;
+    }
+
+    .qrImg {
+        max-width: 260px;
+        width: 100%;
+        height: auto;
+        margin-top: 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(0,0,0,.10);
+        padding: 10px;
+        background: #fff;
+    }
+
+    .qrMeta {
+        margin-top: 10px;
+        color: rgba(0,0,0,.55);
+        font-size: 13px;
+        line-height: 1.2rem;
+    }
+
+    .qrMono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        word-break: break-all;
+        color: rgba(0,0,0,.72);
+        margin-top: 8px;
+    }
+</style>
+
+<h3 class="mb-3">My tickets</h3>
+
+@if (isLoading)
+{
+    <div class="alert alert-info">Loading tickets…</div>
+}
+else if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (tickets.Count == 0)
+{
+    <div class="alert alert-info">No tickets yet.</div>
+    <button class="btn btn-primary" @onclick='() => Nav.NavigateTo("/events")'>
+        Back to events
+    </button>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var t in tickets)
+        {
+            <div class="col-12 col-lg-6">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="fw-semibold">@t.EventTitle</div>
+                        <div class="text-muted">@t.EventDate</div>
+
+                        <hr />
+
+                        <div class="d-flex justify-content-between">
+                            <span>Status</span>
+                            <span class="fw-semibold">@t.Status</span>
+                        </div>
+
+                        <div class="mt-3">
+                            <div class="text-muted small mb-2">Ticket QR</div>
+
+                            @if (t.Status == "Active" || t.Status == "Used")
+                            {
+                                @if (!string.IsNullOrWhiteSpace(t.QRCodeValue))
+                                {
+                                    <div class="qrBox">
+                                        <div class="fw-semibold">Ticket QR</div>
+
+                                        <img src="@BuildTicketQrUrl(t.QRCodeValue)"
+                                             alt="Ticket QR"
+                                             class="qrImg" />
+
+                                        <div class="qrMeta">
+                                            <div>Order ID: @t.OrderId</div>
+                                            <div>Status: @t.Status</div>
+                                        </div>
+
+                                        <div class="qrMono">@t.QRCodeValue</div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="text-muted">QR not available for this ticket.</div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="text-muted">QR invalid for this ticket.</div>
+                            }
+                        </div>
+
+                        <div class="text-muted small mt-2">
+                            Order ID: @t.OrderId
+                        </div>
+
+                        <div class="mt-3 d-flex gap-2 flex-wrap">
+                            @if (t.HasRefundRequest)
+                            {
+                                <span class="badge bg-warning text-dark">Refund requested</span>
+
+                                <button class="btn btn-outline-secondary btn-sm"
+                                        @onclick='() => Nav.NavigateTo("/my-refunds")'>
+                                    View refunds
+                                </button>
+                            }
+                            else if (t.Status == "Active" || t.Status == "Used")
+                            {
+                                <button class="btn btn-outline-danger btn-sm"
+                                        @onclick='() => Nav.NavigateTo($"/refunds/request/{t.TicketId}")'>
+                                    Request refund
+                                </button>
+                            }
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <button class="btn btn-outline-secondary mt-3" @onclick='() => Nav.NavigateTo("/events")'>
+        Back to events
+    </button>
+}
+
+@code {
+    private bool isLoading = true;
+    private string? error;
+
+    private List<TicketVm> tickets = new();
+
+    private bool loadedOnce = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (loadedOnce) return;
+        loadedOnce = true;
+
+        isLoading = true;
+        error = null;
+
+        tickets.Clear();
+
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                error = "User id not found. Please log in again.";
+                return;
+            }
+
+            var userTickets = await Db.Tickets
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.TicketId)
+                .ToListAsync();
+
+            if (userTickets.Count == 0) return;
+
+            var eventIds = userTickets.Select(x => x.EventID).Distinct().ToList();
+
+            var evMap = await Db.Events
+                .Where(e => eventIds.Contains(e.EventID))
+                .ToDictionaryAsync(e => e.EventID);
+
+            var ticketIds = userTickets.Select(x => x.TicketId).ToList();
+
+            var refundedTicketIds = await Db.RefundRequests
+                .Where(r =>
+                    r.UserId == userId &&
+                    ticketIds.Contains(r.TicketId) &&
+                    (r.Status == RefundStatus.Pending || r.Status == RefundStatus.Approved))
+                .Select(r => r.TicketId)
+                .Distinct()
+                .ToListAsync();
+
+            var refundSet = refundedTicketIds.ToHashSet();
+
+            foreach (var t in userTickets)
+            {
+                if (!evMap.TryGetValue(t.EventID, out var ev)) continue;
+
+                tickets.Add(new TicketVm
+                {
+                    TicketId = t.TicketId,
+                    OrderId = t.OrderId,
+                    Status = t.Status,
+                    QRCodeValue = t.QRCodeValue,
+                    EventTitle = ev.Title,
+                    EventDate = $"{ev.StartDate:dd MMM yyyy} to {ev.EndDate:dd MMM yyyy}",
+                    HasRefundRequest = refundSet.Contains(t.TicketId)
+                });
+            }
+        }
+        catch
+        {
+            error = "Failed to load tickets.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string BuildTicketQrUrl(string qrValue)
+    {
+        // Same generator as your PayNow page so it behaves consistently.
+        var safe = Uri.EscapeDataString(qrValue ?? "");
+        return $"https://api.qrserver.com/v1/create-qr-code/?size=260x260&data={safe}";
+    }
+
+    private class TicketVm
+    {
+        public int TicketId { get; set; }
+        public int OrderId { get; set; }
+        public string Status { get; set; } = "";
+        public string QRCodeValue { get; set; } = "";
+        public string EventTitle { get; set; } = "";
+        public string EventDate { get; set; } = "";
+        public bool HasRefundRequest { get; set; }
+    }
+}
+

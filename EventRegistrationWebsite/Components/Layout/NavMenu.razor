@@ -1,7 +1,7 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
 @implements IDisposable
 
-@inject NavigationManager NavigationManager
+@inject NavigationManager Nav
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -13,77 +13,118 @@
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="flex-column">
+
+        <!-- HOME (shared route, page handles role) -->
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="auth">
-                <span class="bi bi-lock-nav-menu" aria-hidden="true"></span> Auth Required
+                Home
             </NavLink>
         </div>
 
-        <AuthorizeView Roles="Admin">
+        <AuthorizeView Context="auth">
             <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="events">
-                        <span class="bi bi-calendar-event-nav-menu" aria-hidden="true"></span> Events
-                    </NavLink>
-                </div>
 
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="packages">
-                        <span class="bi bi-calendar-event-nav-menu" aria-hidden="true"></span> Packages
-                    </NavLink>
-                </div>
+                @* ================= ADMIN NAV ================= *@
+                @if (auth.User.IsInRole("Admin"))
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="events">
+                            Manage Events
+                        </NavLink>
+                    </div>
 
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="admin">
-                        <span class="bi bi-shield-lock-nav-menu" aria-hidden="true"></span> Admin
-                    </NavLink>
-                </div>
-            </Authorized>
-        </AuthorizeView>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="packages">
+                            Manage Packages
+                        </NavLink>
+                    </div>
 
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="admin/refunds">
+                            Refund Approvals
+                        </NavLink>
+                    </div>
 
-        <AuthorizeView>
-            <Authorized>
-                <div class="nav-item px-3">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="admin/achievement-studio">
+                            Achievement Studio
+                        </NavLink>
+                    </div>
+                }
+
+                @* ================= USER NAV ================= *@
+                else
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="events" Match="NavLinkMatch.Prefix">
+                            Events
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="packages">
+                            Packages
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="achievements">
+                            Achievements
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="my-vouchers">
+                            Voucher Wallet
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="my-tickets">
+                            My Tickets
+                        </NavLink>
+                    </div>
+                }
+
+                @* ================= ACCOUNT ================= *@
+                <div class="nav-item px-3 mt-2">
                     <NavLink class="nav-link" href="Account/Manage">
-                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @context.User.Identity?.Name
+                        @auth.User.Identity?.Name
                     </NavLink>
                 </div>
+
                 <div class="nav-item px-3">
                     <form action="Account/Logout" method="post">
                         <AntiforgeryToken />
                         <input type="hidden" name="ReturnUrl" value="@currentUrl" />
                         <button type="submit" class="nav-link">
-                            <span class="bi bi-arrow-bar-left-nav-menu" aria-hidden="true"></span> Logout
+                            Logout
                         </button>
                     </form>
                 </div>
+
             </Authorized>
+
+            @* ================= NOT LOGGED IN ================= *@
             <NotAuthorized>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Register">
-                        <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Register
+                    <NavLink class="nav-link" href="events/browse">
+                        Browse Events
                     </NavLink>
                 </div>
+
+                <div class="nav-item px-3 mt-2">
+                    <NavLink class="nav-link" href="Account/Register">
+                        Register
+                    </NavLink>
+                </div>
+
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="Account/Login">
-                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Login
+                        Login
                     </NavLink>
                 </div>
             </NotAuthorized>
-        </AuthorizeView>
-
-        <AuthorizeView Roles="Admin">
-            <Authorized>
-                <!-- Events link -->
-                <!-- Package link -->
-                <!-- Admin link (optional) -->
-            </Authorized>
         </AuthorizeView>
 
     </nav>
@@ -94,19 +135,18 @@
 
     protected override void OnInitialized()
     {
-        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
-        NavigationManager.LocationChanged += OnLocationChanged;
+        currentUrl = Nav.ToBaseRelativePath(Nav.Uri);
+        Nav.LocationChanged += OnLocationChanged;
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        currentUrl = Nav.ToBaseRelativePath(e.Location);
         StateHasChanged();
     }
 
     public void Dispose()
     {
-        NavigationManager.LocationChanged -= OnLocationChanged;
+        Nav.LocationChanged -= OnLocationChanged;
     }
 }
-

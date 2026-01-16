@@ -1,6 +1,8 @@
 using EventRegistrationWebsite.Components;
 using EventRegistrationWebsite.Components.Account;
 using EventRegistrationWebsite.Data;
+using EventRegistrationWebsite.Models.Wishlist;
+using EventRegistrationWebsite.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +21,7 @@ builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 builder.Services.AddScoped<EventRegistrationWebsite.Services.OneMapService>();
+builder.Services.AddScoped<VoucherService>();
 
 
 builder.Services.AddAuthentication(options =>
@@ -89,6 +92,9 @@ using (var scope = app.Services.CreateScope())
     if (!await userManager.IsInRoleAsync(adminUser, adminRole))
         await userManager.AddToRoleAsync(adminUser, adminRole);
 }
+
+await EventRegistrationWebsite.Data.AchievementStudioSeed.EnsureSeededAsync(app.Services);
+
 //end added code
 
 app.UseHttpsRedirection();

@@ -1,0 +1,837 @@
+﻿@page "/admin/refunds"
+@rendermode InteractiveServer
+
+@using System.Security.Claims
+@using System.Text
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+
+@attribute [Authorize(Roles = "Admin")]
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+
+<style>
+    :root {
+        --bg: #fff5f8;
+        --border: rgba(236,72,153,.18);
+        --soft: rgba(236,72,153,.08);
+        --accent: #ec4899;
+        --accent2: #db2777;
+        --text: rgba(0,0,0,.86);
+        --muted: rgba(0,0,0,.56);
+        --shadow: 0 12px 30px rgba(236,72,153,.12);
+        --radius: 20px;
+    }
+
+    .adminWrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 22px 18px 34px 18px;
+    }
+
+    .adminTitle {
+        font-size: 44px;
+        font-weight: 900;
+        margin: 0;
+        letter-spacing: .2px;
+        color: var(--text);
+    }
+
+    .adminSub {
+        margin-top: 6px;
+        max-width: 820px;
+        font-size: 14px;
+        color: var(--muted);
+    }
+
+    .pillRow {
+        margin-top: 14px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .pill {
+        border-radius: 999px;
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        background: var(--soft);
+        color: var(--accent2);
+        font-weight: 650;
+        font-size: 12px;
+    }
+
+    .cardPink {
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        background: linear-gradient(180deg,#fff,var(--bg));
+        box-shadow: var(--shadow);
+    }
+
+    .cardPad {
+        padding: 16px;
+    }
+
+    .btnPink {
+        background: var(--accent);
+        border: 1px solid var(--accent);
+        color: #fff;
+        border-radius: 14px;
+        padding: 10px 14px;
+        font-weight: 750;
+    }
+
+        .btnPink:hover {
+            background: var(--accent2);
+            border-color: var(--accent2);
+        }
+
+    .btnPinkOutline {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--accent2);
+        border-radius: 14px;
+        padding: 10px 14px;
+        font-weight: 750;
+    }
+
+    .btnPinkOutlineSm {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--accent2);
+        border-radius: 12px;
+        padding: 7px 10px;
+        font-weight: 750;
+        font-size: 12px;
+    }
+
+    .btnSuccessSm {
+        background: rgba(34,197,94,.14);
+        border: 1px solid rgba(34,197,94,.28);
+        color: rgb(21,128,61);
+        border-radius: 12px;
+        padding: 7px 10px;
+        font-weight: 850;
+        font-size: 12px;
+    }
+
+    .btnDangerSm {
+        background: rgba(239,68,68,.12);
+        border: 1px solid rgba(239,68,68,.22);
+        color: rgb(185,28,28);
+        border-radius: 12px;
+        padding: 7px 10px;
+        font-weight: 850;
+        font-size: 12px;
+    }
+
+    .softInput {
+        border-radius: 12px;
+        border: 1px solid rgba(236,72,153,.22);
+    }
+
+        .softInput:focus {
+            box-shadow: 0 0 0 .2rem rgba(236,72,153,.18);
+            border-color: rgba(236,72,153,.45);
+        }
+
+    .grid4 {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    @@media (max-width: 1100px) {
+        .grid4 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 640px) {
+        .grid4 {
+            grid-template-columns: 1fr;
+        }
+
+        .adminTitle {
+            font-size: 34px;
+        }
+    }
+
+    .metricLabel {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 700;
+    }
+
+    .metricValue {
+        font-size: 28px;
+        font-weight: 900;
+        color: var(--text);
+        margin-top: 4px;
+    }
+
+    .twoCol {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, .7fr);
+        gap: 14px;
+        align-items: start;
+    }
+
+    @@media (max-width: 1100px) {
+        .twoCol {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .tablePink {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        overflow: hidden;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        background: #fff;
+    }
+
+        .tablePink th {
+            text-align: left;
+            font-size: 12px;
+            color: var(--muted);
+            padding: 12px;
+            background: rgba(236,72,153,.06);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        .tablePink td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(236,72,153,.10);
+            color: var(--text);
+            vertical-align: top;
+        }
+
+        .tablePink tr:last-child td {
+            border-bottom: none;
+        }
+
+    .rowNote {
+        background: rgba(236,72,153,.04);
+        border-top: 1px solid rgba(236,72,153,.10);
+    }
+
+    .badgeSoft {
+        border-radius: 999px;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        background: var(--soft);
+        color: var(--accent2);
+        font-weight: 850;
+        font-size: 12px;
+    }
+
+    .badgePending {
+        background: rgba(245,158,11,.14);
+        border: 1px solid rgba(245,158,11,.25);
+        color: rgb(120,53,15);
+    }
+
+    .badgeApproved {
+        background: rgba(34,197,94,.14);
+        border: 1px solid rgba(34,197,94,.25);
+        color: rgb(21,128,61);
+    }
+
+    .badgeRejected {
+        background: rgba(239,68,68,.12);
+        border: 1px solid rgba(239,68,68,.22);
+        color: rgb(185,28,28);
+    }
+</style>
+
+<div class="adminWrap">
+
+    <h1 class="adminTitle">Refund approvals</h1>
+    <div class="adminSub">
+        Review refund requests, approve or reject, and export logs for reporting.
+    </div>
+
+    <div class="pillRow">
+        <span class="pill">Admin only</span>
+        <span class="pill">Refunds</span>
+        <span class="pill">Audit log</span>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 flex-wrap mt-3">
+        <button class="btnPinkOutline" @onclick="Load" disabled="@loading">
+            Refresh
+        </button>
+
+        <button class="btnPinkOutline" @onclick="SeedSamples" disabled="@seeding">
+            @(seeding ? "Seeding" : "Seed sample requests")
+        </button>
+
+        <button class="btnPink" @onclick="ExportCsv" disabled="@loading">
+            Export CSV
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="cardPink mt-3">
+            <div class="cardPad">
+                <div class="alert alert-danger mb-0">@error</div>
+            </div>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="cardPink mt-3">
+            <div class="cardPad">
+                <div class="alert alert-success mb-0">@message</div>
+            </div>
+        </div>
+    }
+
+    @if (loading)
+    {
+        <div class="cardPink mt-3">
+            <div class="cardPad">
+                <div class="text-muted">Loading</div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="grid4">
+            <div class="cardPink">
+                <div class="cardPad">
+                    <div class="metricLabel">Pending</div>
+                    <div class="metricValue">@pending.Count</div>
+                </div>
+            </div>
+
+            <div class="cardPink">
+                <div class="cardPad">
+                    <div class="metricLabel">Approved</div>
+                    <div class="metricValue">@approvedCount</div>
+                </div>
+            </div>
+
+            <div class="cardPink">
+                <div class="cardPad">
+                    <div class="metricLabel">Rejected</div>
+                    <div class="metricValue">@rejectedCount</div>
+                </div>
+            </div>
+
+            <div class="cardPink">
+                <div class="cardPad">
+                    <div class="metricLabel">Tickets refunded</div>
+                    <div class="metricValue">@refundedTicketsCount</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="cardPink mt-3">
+            <div class="cardPad">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <div class="fw-bold">Top events by refunds</div>
+                    <span class="badgeSoft">@topEvents.Count</span>
+                </div>
+
+                @if (topEvents.Count == 0)
+                {
+                    <div class="text-muted small">No data yet</div>
+                }
+                else
+                {
+                    <div style="overflow:auto;">
+                        <table class="tablePink">
+                            <thead>
+                                <tr>
+                                    <th>Event</th>
+                                    <th style="width:180px;" class="text-end">Refund requests</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var e in topEvents)
+                                {
+                                    <tr>
+                                        <td>@e.EventTitle</td>
+                                        <td class="text-end fw-bold">@e.Count</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="twoCol">
+            <div class="cardPink">
+                <div class="cardPad">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                        <div class="fw-bold">Pending requests</div>
+                        <span class="badgeSoft badgePending">@pending.Count</span>
+                    </div>
+
+                    @if (pending.Count == 0)
+                    {
+                        <div class="alert alert-info mb-0">No pending refund requests.</div>
+                    }
+                    else
+                    {
+                        <div style="overflow:auto;">
+                            <table class="tablePink">
+                                <thead>
+                                    <tr>
+                                        <th style="width:110px;">Refund</th>
+                                        <th style="width:110px;">Ticket</th>
+                                        <th>Event</th>
+                                        <th style="width:180px;">User</th>
+                                        <th style="width:170px;">Requested</th>
+                                        <th style="width:420px;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in pending)
+                                    {
+                                        <tr>
+                                            <td class="fw-bold">#@r.RefundRequestId</td>
+                                            <td>@r.TicketId</td>
+                                            <td>@r.EventTitle</td>
+                                            <td class="text-muted small">@r.UserId</td>
+                                            <td class="text-muted small">@r.CreatedAt</td>
+                                            <td>
+                                                <div class="d-flex gap-2 flex-wrap">
+                                                    <input class="form-control form-control-sm softInput"
+                                                           style="min-width:220px;"
+                                                           placeholder="Admin note"
+                                                           @bind="r.AdminNoteDraft" />
+
+                                                    <button class="btnSuccessSm" @onclick="() => Approve(r)">
+                                                        Approve
+                                                    </button>
+
+                                                    <button class="btnDangerSm" @onclick="() => Reject(r)">
+                                                        Reject
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        @if (!string.IsNullOrWhiteSpace(r.Reason))
+                                        {
+                                            <tr class="rowNote">
+                                                <td colspan="6" class="text-muted small">
+                                                    <span class="fw-bold">Reason</span>: @r.Reason
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="cardPink">
+                <div class="cardPad">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                        <div class="fw-bold">History log</div>
+                        <span class="badgeSoft">@history.Count</span>
+                    </div>
+
+                    @if (history.Count == 0)
+                    {
+                        <div class="alert alert-light mb-0">No reviewed refunds yet.</div>
+                    }
+                    else
+                    {
+                        <div style="overflow:auto;">
+                            <table class="tablePink">
+                                <thead>
+                                    <tr>
+                                        <th>Refund</th>
+                                        <th style="width:120px;">Status</th>
+                                        <th style="width:170px;">Reviewed</th>
+                                        <th style="width:190px;">By</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in history)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold">#@r.RefundRequestId</div>
+                                                <div class="text-muted small">Ticket @r.TicketId</div>
+                                                <div class="text-muted small">@r.EventTitle</div>
+                                            </td>
+                                            <td class="fw-bold">
+                                                @if (IsApproved(r.Status))
+                                                {
+                                                    <span class="badgeSoft badgeApproved">Approved</span>
+                                                }
+                                                else if (IsRejected(r.Status))
+                                                {
+                                                    <span class="badgeSoft badgeRejected">Rejected</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badgeSoft">@r.Status</span>
+                                                }
+                                            </td>
+                                            <td class="text-muted small">@r.ReviewedAt</td>
+                                            <td class="text-muted small">@r.ReviewedBy</td>
+                                        </tr>
+
+                                        @if (!string.IsNullOrWhiteSpace(r.AdminNote))
+                                        {
+                                            <tr class="rowNote">
+                                                <td colspan="4" class="text-muted small">
+                                                    <span class="fw-bold">Admin note</span>: @r.AdminNote
+                                                </td>
+                                            </tr>
+                                        }
+
+                                        @if (!string.IsNullOrWhiteSpace(r.Reason))
+                                        {
+                                            <tr class="rowNote">
+                                                <td colspan="4" class="text-muted small">
+                                                    <span class="fw-bold">Reason</span>: @r.Reason
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<script>
+    window.__downloadTextFile = (fileName, content) => {
+        const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+</script>
+
+@code {
+    private bool loading = true;
+    private bool seeding = false;
+    private string? error;
+    private string? message;
+
+    private List<RowVm> pending = new();
+    private List<RowVm> history = new();
+
+    private int approvedCount;
+    private int rejectedCount;
+    private int refundedTicketsCount;
+
+    private List<TopEventVm> topEvents = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private static bool IsApproved(object status) => status?.ToString() == "Approved";
+    private static bool IsRejected(object status) => status?.ToString() == "Rejected";
+    private static bool IsPending(object status) => status?.ToString() == "Pending";
+
+    private async Task Load()
+    {
+        loading = true;
+        error = null;
+        message = null;
+
+        pending.Clear();
+        history.Clear();
+        topEvents.Clear();
+
+        approvedCount = 0;
+        rejectedCount = 0;
+        refundedTicketsCount = 0;
+
+        try
+        {
+            var reqs = await Db.RefundRequests
+                .OrderByDescending(r => r.RefundRequestId)
+                .Take(1000)
+                .ToListAsync();
+
+            approvedCount = reqs.Count(r => IsApproved(r.Status));
+            rejectedCount = reqs.Count(r => IsRejected(r.Status));
+
+            refundedTicketsCount = await Db.Tickets.CountAsync(t => t.Status == "Refunded");
+
+            if (reqs.Count == 0) return;
+
+            var ticketIds = reqs.Select(x => x.TicketId).Distinct().ToList();
+            var tickets = await Db.Tickets.Where(t => ticketIds.Contains(t.TicketId)).ToListAsync();
+            var ticketMap = tickets.ToDictionary(t => t.TicketId);
+
+            var eventIds = tickets.Select(t => t.EventID).Distinct().ToList();
+            var evMap = await Db.Events.Where(e => eventIds.Contains(e.EventID)).ToDictionaryAsync(e => e.EventID);
+
+            foreach (var r in reqs)
+            {
+                if (!ticketMap.TryGetValue(r.TicketId, out var t)) continue;
+                evMap.TryGetValue(t.EventID, out var ev);
+
+                var vm = new RowVm
+                {
+                    RefundRequestId = r.RefundRequestId,
+                    TicketId = r.TicketId,
+                    EventTitle = ev?.Title ?? "Unknown",
+                    UserId = r.UserId ?? "",
+                    Status = r.Status ?? "",
+                    Reason = r.Reason ?? "",
+                    CreatedAt = r.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm"),
+                    ReviewedAt = r.ReviewedAtUtc.HasValue ? r.ReviewedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm") : "-",
+                    ReviewedBy = string.IsNullOrWhiteSpace(r.ReviewedByUserId) ? "-" : r.ReviewedByUserId!,
+                    AdminNote = r.AdminNote,
+                    AdminNoteDraft = ""
+                };
+
+                if (IsPending(r.Status))
+                    pending.Add(vm);
+                else
+                    history.Add(vm);
+            }
+
+            var top = reqs
+                .Select(r => new { r.TicketId })
+                .Join(tickets, a => a.TicketId, t => t.TicketId, (a, t) => t.EventID)
+                .GroupBy(eid => eid)
+                .Select(g => new { EventID = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .Take(8)
+                .ToList();
+
+            foreach (var x in top)
+            {
+                evMap.TryGetValue(x.EventID, out var ev);
+                topEvents.Add(new TopEventVm { EventTitle = ev?.Title ?? $"Event {x.EventID}", Count = x.Count });
+            }
+        }
+        catch
+        {
+            error = "Failed to load refunds.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private Task Approve(RowVm row) => Review(row, true);
+    private Task Reject(RowVm row) => Review(row, false);
+
+    private async Task Review(RowVm row, bool approve)
+    {
+        error = null;
+        message = null;
+
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var adminId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(adminId))
+            {
+                error = "Admin id not found. Please log in again.";
+                return;
+            }
+
+            using var tx = await Db.Database.BeginTransactionAsync();
+
+            var req = await Db.RefundRequests.FirstOrDefaultAsync(r => r.RefundRequestId == row.RefundRequestId);
+            if (req == null) return;
+            if (!IsPending(req.Status)) return;
+
+            req.Status = approve ? "Approved" : "Rejected";
+            req.ReviewedAtUtc = DateTime.UtcNow;
+            req.ReviewedByUserId = adminId;
+            req.AdminNote = string.IsNullOrWhiteSpace(row.AdminNoteDraft) ? null : row.AdminNoteDraft.Trim();
+
+            if (approve)
+            {
+                var ticket = await Db.Tickets.FirstOrDefaultAsync(t => t.TicketId == req.TicketId);
+                if (ticket != null)
+                {
+                    ticket.Status = "Refunded";
+                    ticket.QRCodeValue = "INVALID";
+                }
+            }
+
+            await Db.SaveChangesAsync();
+            await tx.CommitAsync();
+
+            message = approve ? "Refund approved and logged." : "Refund rejected and logged.";
+            await Load();
+        }
+        catch
+        {
+            error = "Failed to review refund.";
+        }
+    }
+
+    private async Task SeedSamples()
+    {
+        seeding = true;
+        error = null;
+        message = null;
+
+        try
+        {
+            var existingTicketIds = await Db.RefundRequests.Select(r => r.TicketId).ToListAsync();
+
+            var candidates = await Db.Tickets
+                .Where(t => t.Status == "Active" && !existingTicketIds.Contains(t.TicketId))
+                .OrderByDescending(t => t.TicketId)
+                .Take(3)
+                .ToListAsync();
+
+            if (candidates.Count == 0)
+            {
+                message = "No eligible tickets to seed.";
+                return;
+            }
+
+            var reasons = new[]
+            {
+                "Unable to attend due to schedule change.",
+                "Accidentally bought wrong date and need to re purchase.",
+                "Family emergency, cannot attend."
+            };
+
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                var t = candidates[i];
+
+                Db.RefundRequests.Add(new RefundRequest
+                {
+                    TicketId = t.TicketId,
+                    UserId = t.UserId,
+                    Reason = reasons[i % reasons.Length],
+                    Status = "Pending",
+                    CreatedAtUtc = DateTime.UtcNow.AddMinutes(-(10 * (i + 1)))
+                });
+            }
+
+            await Db.SaveChangesAsync();
+            message = "Seeded sample refund requests.";
+            await Load();
+        }
+        catch
+        {
+            error = "Failed to seed sample requests.";
+        }
+        finally
+        {
+            seeding = false;
+        }
+    }
+
+    private async Task ExportCsv()
+    {
+        error = null;
+        message = null;
+
+        try
+        {
+            var rows = await Db.RefundRequests
+                .OrderByDescending(r => r.RefundRequestId)
+                .Take(5000)
+                .ToListAsync();
+
+            var ticketIds = rows.Select(r => r.TicketId).Distinct().ToList();
+            var tickets = await Db.Tickets.Where(t => ticketIds.Contains(t.TicketId)).ToListAsync();
+            var ticketMap = tickets.ToDictionary(t => t.TicketId);
+
+            var eventIds = tickets.Select(t => t.EventID).Distinct().ToList();
+            var evMap = await Db.Events.Where(e => eventIds.Contains(e.EventID)).ToDictionaryAsync(e => e.EventID);
+
+            var sb = new StringBuilder();
+            sb.AppendLine("RefundRequestId,TicketId,EventTitle,UserId,Status,Reason,CreatedAtUtc,ReviewedAtUtc,ReviewedByUserId,AdminNote");
+
+            foreach (var r in rows)
+            {
+                ticketMap.TryGetValue(r.TicketId, out var t);
+                var title = "";
+                if (t != null && evMap.TryGetValue(t.EventID, out var ev))
+                    title = ev.Title ?? "";
+
+                sb.AppendLine(string.Join(",",
+                    Csv(r.RefundRequestId.ToString()),
+                    Csv(r.TicketId.ToString()),
+                    Csv(title),
+                    Csv(r.UserId ?? ""),
+                    Csv(r.Status?.ToString() ?? ""),
+                    Csv(r.Reason ?? ""),
+                    Csv(r.CreatedAtUtc.ToString("o")),
+                    Csv(r.ReviewedAtUtc?.ToString("o") ?? ""),
+                    Csv(r.ReviewedByUserId ?? ""),
+                    Csv(r.AdminNote ?? "")
+                ));
+            }
+
+            var fileName = $"refund_log_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv";
+            await JS.InvokeVoidAsync("__downloadTextFile", fileName, sb.ToString());
+            message = "CSV exported.";
+        }
+        catch
+        {
+            error = "Failed to export CSV.";
+        }
+    }
+
+    private static string Csv(string s)
+    {
+        s ??= "";
+        s = s.Replace("\"", "\"\"");
+        return $"\"{s}\"";
+    }
+
+    private class RowVm
+    {
+        public int RefundRequestId { get; set; }
+        public int TicketId { get; set; }
+        public string EventTitle { get; set; } = "";
+        public string UserId { get; set; } = "";
+        public object Status { get; set; } = "";
+        public string Reason { get; set; } = "";
+        public string CreatedAt { get; set; } = "";
+        public string ReviewedAt { get; set; } = "";
+        public string ReviewedBy { get; set; } = "";
+        public string? AdminNote { get; set; }
+        public string AdminNoteDraft { get; set; } = "";
+    }
+
+    private class TopEventVm
+    {
+        public string EventTitle { get; set; } = "";
+        public int Count { get; set; }
+    }
+}

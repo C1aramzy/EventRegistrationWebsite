@@ -114,11 +114,26 @@ else
                                     <option value="Trial Session">Trial Session</option>
                                     <option value="Competition">Competition</option>
                                     <option value="Networking">Networking</option>
-                                    <option value="Open House">Open House</option>
+                                    <option value="Concert">Open House</option>
                                     <option value="Performance">Performance</option>
                                     <option value="Other">Other</option>
                                 </select>
                             </div>
+                            
+                            @if (eventModel.EventType == "Performance" && eventModel.EventID > 0)
+                            {
+                                <div class="mb-3">
+                                    <a class="btn btn-outline-primary"
+                                       href="@($"/events/seating/{eventModel.EventID}")">
+                                        Seating editor
+                                    </a>
+
+                                    <div class="form-text">
+                                        Configure seat layout for this performance event.
+                                    </div>
+                                </div>
+                            }
+
 
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Vibe</label>

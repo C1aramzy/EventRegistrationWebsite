@@ -1,0 +1,1484 @@
+﻿@page "/admin/achievement-studio"
+@rendermode InteractiveServer
+
+@using System.ComponentModel.DataAnnotations
+@using EventRegistrationWebsite.Models
+@using EventRegistrationWebsite.Models.Achievement
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+
+@attribute [Authorize(Roles = "Admin")]
+
+@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+
+<div class="achPage">
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="alert alert-danger mb-3">@error</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="alert alert-success mb-3">@message</div>
+    }
+
+    <div class="top">
+        <div>
+            <h2>Achievement Studio</h2>
+            <div class="sub">Steam inspired achievements. Admin can create and edit. Preview any customer unlocks.</div>
+        </div>
+        <div class="chip">
+            <i class="bi bi-shield-lock"></i>
+            Admin
+        </div>
+    </div>
+
+    <div class="grid">
+        <!-- LEFT: Admin -->
+        <div class="card">
+            <div class="pad">
+                <div class="titleRow">
+                    <div>
+                        <div class="title">Admin</div>
+                        <div class="muted">Manage achievements and a single tier per achievement.</div>
+                    </div>
+                </div>
+
+                <div class="rowActions">
+                    <button class="btnP" type="button" @onclick="NewAchievement" disabled="@busy">New</button>
+                    <button class="btnG" type="button" @onclick="ReloadAdminData" disabled="@busy">Reload</button>
+
+                    <div class="grow"></div>
+
+                    <input class="input"
+                           placeholder="Search by code, name, description"
+                           value="@adminSearch"
+                           @oninput="OnAdminSearchInput"
+                           disabled="@busy" />
+                </div>
+
+                <div class="hr"></div>
+
+                <!-- STACK: List then Editor -->
+                <div class="adminStack">
+                    <!-- List -->
+                    <div class="pane">
+                        <div class="paneHead">
+                            <div>
+                                <div class="title">Achievement list</div>
+                                <div class="muted">Click Edit to load into the editor.</div>
+                            </div>
+                            <div class="muted2 smallCount">@($"{filteredAdmin.Count} shown")</div>
+                        </div>
+
+                        <div class="list">
+                            @if (filteredAdmin.Count == 0)
+                            {
+                                <div class="empty">No achievements found.</div>
+                            }
+                            else
+                            {
+                                @foreach (var a in filteredAdmin)
+                                {
+                                    <div class="rowAch">
+                                        <div class="leftBlock">
+                                            <div class="icon">
+                                                <i class="@a.IconCss"></i>
+                                            </div>
+
+                                            <div class="txt">
+                                                <div class="name">@a.Name</div>
+                                                <div class="desc">@a.Description</div>
+                                                <div class="code">@a.Code</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="rightBlock">
+                                            <span class="tierStar @(TierClass(a.TierName))">
+                                                <i class="bi bi-trophy-fill"></i>
+                                                @a.TierName
+                                                <span class="pts">@a.Points</span>
+                                            </span>
+
+                                            <button class="btnS" type="button" @onclick="() => LoadForEdit(a.AchievementId)" disabled="@busy">
+                                                Edit
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Editor -->
+                    <div class="pane">
+                        <div class="paneHead">
+                            <div>
+                                <div class="title">Editor</div>
+                                <div class="muted">Create or update an achievement. One achievement has one tier.</div>
+                            </div>
+                        </div>
+
+                        <div class="hr"></div>
+
+                        <EditForm Model="@editor" OnValidSubmit="SaveAchievement">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+
+                            <div class="stack">
+                                <div>
+                                    <div class="label">Code</div>
+                                    <input class="input" @bind="editor.Code" placeholder="FIRST_TICKET" disabled="@busy" />
+                                    <div class="tiny">Unique. Uppercase and underscore recommended.</div>
+                                </div>
+
+                                <div>
+                                    <div class="label">Name</div>
+                                    <input class="input" @bind="editor.Name" placeholder="First Ticket" disabled="@busy" />
+                                </div>
+
+                                <div>
+                                    <div class="label">Description</div>
+                                    <textarea class="textarea" rows="3" @bind="editor.Description" placeholder="Purchase your first ticket." disabled="@busy"></textarea>
+                                </div>
+
+                                <!-- Icon css on its own row -->
+                                <div>
+                                    <div class="label">Icon css</div>
+                                    <input class="input" @bind="editor.IconCss" placeholder="bi bi-trophy-fill" disabled="@busy" />
+                                    <div class="tiny">Bootstrap Icons class string.</div>
+                                </div>
+
+                                <!-- Live badge below Icon css -->
+                                <div>
+                                    <div class="label">Live badge</div>
+                                    <div class="badgePreview">
+                                        <div class="badgeIcon">
+                                            <i class="@(string.IsNullOrWhiteSpace(editor.IconCss) ? "bi bi-trophy-fill" : editor.IconCss)"></i>
+                                        </div>
+                                        <div class="badgeText">
+                                            <div class="badgeName">@((string.IsNullOrWhiteSpace(editor.Name) ? "Achievement name" : editor.Name))</div>
+                                            <div class="badgeTier @(TierClass(editor.TierName))">
+                                                <i class="bi bi-trophy-fill"></i>
+                                                @editor.TierName
+                                                <span class="badgePts">@editor.PointsAwarded</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="label">Tier</div>
+
+                                    <div class="tierGrid" role="group" aria-label="Select tier">
+                                        <button type="button"
+                                                class="tierCard bronze @(editor.TierName == "Bronze" ? "active" : "")"
+                                                @onclick="PickBronze"
+                                                disabled="@busy">
+                                            <div class="tierIcon"><i class="bi bi-trophy-fill"></i></div>
+                                            <div class="tierMeta">
+                                                <div class="tierName">Bronze</div>
+                                                <div class="tierSub">Entry badge</div>
+                                            </div>
+                                            <div class="tierPts">+5</div>
+                                        </button>
+
+                                        <button type="button"
+                                                class="tierCard silver @(editor.TierName == "Silver" ? "active" : "")"
+                                                @onclick="PickSilver"
+                                                disabled="@busy">
+                                            <div class="tierIcon"><i class="bi bi-trophy-fill"></i></div>
+                                            <div class="tierMeta">
+                                                <div class="tierName">Silver</div>
+                                                <div class="tierSub">Milestone</div>
+                                            </div>
+                                            <div class="tierPts">+15</div>
+                                        </button>
+
+                                        <button type="button"
+                                                class="tierCard gold @(editor.TierName == "Gold" ? "active" : "")"
+                                                @onclick="PickGold"
+                                                disabled="@busy">
+                                            <div class="tierIcon"><i class="bi bi-trophy-fill"></i></div>
+                                            <div class="tierMeta">
+                                                <div class="tierName">Gold</div>
+                                                <div class="tierSub">Prestige</div>
+                                            </div>
+                                            <div class="tierPts">+30</div>
+                                        </button>
+                                    </div>
+
+                                    <div class="tiny mt10">You can still adjust points manually if you want.</div>
+                                </div>
+
+                                <div class="twoCol">
+                                    <div>
+                                        <div class="label">Points</div>
+                                        <input class="input" type="number" @bind="editor.PointsAwarded" min="0" disabled="@busy" />
+                                    </div>
+
+                                    <div class="checkRow checkRowEnd">
+                                        <input type="checkbox" id="isActive" @bind="editor.IsActive" disabled="@busy" />
+                                        <label for="isActive" class="checkLabel">Active</label>
+                                    </div>
+                                </div>
+
+                                <div class="btnRowRight">
+                                    <button class="btnP" type="submit" disabled="@busy">Save</button>
+                                    <button class="btnG" type="button" @onclick="ClearEditor" disabled="@busy">Clear</button>
+                                </div>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Customer preview -->
+        <div class="card previewSticky">
+            <div class="previewHeader">
+                <div class="title">Customer preview</div>
+                <div class="muted">Search by email to preview unlocked achievements.</div>
+
+                <div class="previewActions">
+                    <input class="input" @bind="customerSearch.Email" placeholder="customer@email.com" disabled="@busy" />
+                    <button class="btnP" type="button" @onclick="FindCustomer" disabled="@busy">Scan</button>
+                    <button class="btnG" type="button" @onclick="ClearCustomer" disabled="@busy">Clear</button>
+                </div>
+
+                <div class="caps mt10">@unlockedCount of @totalCount earned (@unlockPctText)</div>
+                <div class="barWrap">
+                    <div class="barFill" style="width:@unlockPct%"></div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(selectedCustomerEmail))
+                {
+                    <div class="muted2 mt10">@selectedCustomerEmail</div>
+                }
+            </div>
+
+            <div class="pad previewBody">
+                @if (string.IsNullOrWhiteSpace(selectedCustomerId))
+                {
+                    <div class="muted">Scan a customer email to load achievements.</div>
+                }
+                else
+                {
+                    <div class="sectionTitle">Unlocked</div>
+                    <div class="muted">Most recent unlocks first.</div>
+
+                    <div class="tileGrid mt10">
+                        @foreach (var t in unlockedTiles)
+                        {
+                            <div class="tile">
+                                <div class="tileTop">
+                                    <div class="tileIcon"><i class="@t.IconCss"></i></div>
+                                    <span class="miniTier @(TierClass(t.TierName))"><i class="bi bi-trophy-fill"></i></span>
+                                </div>
+                                <div class="tileName" title="@t.Name">@t.Name</div>
+                                <div class="tileMeta">@t.UnlockedAtText</div>
+                                <div class="tileMeta">@t.GlobalPctText global</div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="hr"></div>
+
+                    <div class="sectionTitle">Locked</div>
+                    <div class="muted">Same layout, dimmed like Steam.</div>
+
+                    <div class="tileGrid mt10">
+                        @foreach (var t in lockedTiles)
+                        {
+                            <div class="tile locked">
+                                <div class="tileTop">
+                                    <div class="tileIcon"><i class="bi bi-question-lg"></i></div>
+                                    <span class="miniTier @(TierClass(t.TierName))"><i class="bi bi-trophy-fill"></i></span>
+                                </div>
+                                <div class="tileName" title="@t.Name">@t.Name</div>
+                                <div class="tileMeta">Locked</div>
+                                <div class="tileMeta">@t.GlobalPctText global</div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    :root {
+        --card: #ffffff;
+        --border: rgba(17,24,39,.10);
+        --text: #0f172a;
+        --muted: #64748b;
+        --muted2: #94a3b8;
+        --brand: #f3a6b8;
+        --brandSoft: rgba(243,166,184,.18);
+        --shadow: 0 14px 30px rgba(15,23,42,.10);
+        --bronze: rgba(205,127,50,.95);
+        --silver: rgba(160,170,185,.98);
+        --gold: rgba(255,215,0,.98);
+    }
+
+    .achPage {
+        min-height: calc(100vh - 110px);
+        padding: 18px;
+        background: linear-gradient(180deg, #fff, #fdf2f6);
+        color: var(--text);
+    }
+
+    .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+        .top h2 {
+            margin: 0;
+            font-weight: 900;
+            letter-spacing: -.02em;
+        }
+
+    .sub {
+        color: var(--muted);
+        margin-top: 4px;
+    }
+
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,.75);
+        box-shadow: 0 8px 18px rgba(0,0,0,.06);
+        font-weight: 900;
+        color: var(--text);
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 420px;
+        gap: 16px;
+        align-items: start;
+    }
+
+    @@media (max-width: 1200px) {
+        .grid {
+            grid-template-columns: 1fr;
+        }
+
+        .previewSticky {
+            position: relative;
+            top: auto;
+        }
+    }
+
+    .card {
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        min-width: 0;
+    }
+
+    .pad {
+        padding: 16px;
+        min-width: 0;
+    }
+
+    .titleRow {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 10px;
+    }
+
+    .title {
+        font-weight: 900;
+        font-size: 1.05rem;
+    }
+
+    .muted {
+        color: var(--muted);
+    }
+
+    .muted2 {
+        color: var(--muted2);
+    }
+
+    .smallCount {
+        font-size: .9rem;
+    }
+
+    .hr {
+        border-top: 1px solid rgba(17,24,39,.08);
+        margin: 12px 0;
+    }
+
+    .rowActions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-top: 10px;
+    }
+
+    .grow {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .input {
+        width: 100%;
+        border-radius: 12px;
+        padding: 10px 12px;
+        border: 1px solid rgba(17,24,39,.12);
+        background: #fff;
+        color: var(--text);
+        outline: none;
+    }
+
+        .input:focus {
+            border-color: rgba(243,166,184,.85);
+            box-shadow: 0 0 0 3px rgba(243,166,184,.25);
+        }
+
+    .textarea {
+        width: 100%;
+        border-radius: 12px;
+        padding: 10px 12px;
+        border: 1px solid rgba(17,24,39,.12);
+        background: #fff;
+        color: var(--text);
+        outline: none;
+        resize: vertical;
+    }
+
+    .btnP {
+        border-radius: 12px;
+        border: 1px solid rgba(243,166,184,.85);
+        background: rgba(243,166,184,.95);
+        color: #fff;
+        font-weight: 900;
+        padding: 10px 14px;
+        white-space: nowrap;
+    }
+
+    .btnG {
+        border-radius: 12px;
+        border: 1px solid rgba(17,24,39,.14);
+        background: rgba(255,255,255,.92);
+        color: var(--text);
+        font-weight: 900;
+        padding: 10px 14px;
+        white-space: nowrap;
+    }
+
+    .btnS {
+        border-radius: 12px;
+        border: 1px solid rgba(17,24,39,.14);
+        background: rgba(255,255,255,.92);
+        color: var(--text);
+        font-weight: 900;
+        padding: 8px 12px;
+        white-space: nowrap;
+    }
+
+    /* THIS is what moves editor below */
+    .adminStack {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        min-width: 0;
+    }
+
+    .pane {
+        border: 1px solid rgba(17,24,39,.10);
+        background: rgba(15,23,42,.02);
+        border-radius: 14px;
+        padding: 12px;
+        min-width: 0;
+    }
+
+    .paneHead {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 12px;
+    }
+
+    .list {
+        margin-top: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-height: 420px;
+        min-height: 260px;
+        overflow: auto;
+        padding-right: 2px;
+        min-width: 0;
+    }
+
+    @@media (max-width: 1100px) {
+        .list {
+            max-height: none;
+        }
+    }
+
+    .empty {
+        padding: 12px;
+        border-radius: 12px;
+        background: rgba(255,255,255,.7);
+        border: 1px solid rgba(17,24,39,.08);
+        color: var(--muted);
+        font-weight: 700;
+    }
+
+    .rowAch {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(255,255,255,.95);
+        border: 1px solid rgba(17,24,39,.08);
+        min-width: 0;
+    }
+
+    .leftBlock {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        border: 1px solid rgba(17,24,39,.10);
+        background: var(--brandSoft);
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+    }
+
+        .icon i {
+            font-size: 1.25rem;
+        }
+
+    .txt {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .name {
+        font-weight: 900;
+        line-height: 1.15;
+        white-space: normal;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .desc {
+        color: var(--muted);
+        font-size: .92rem;
+        margin-top: 2px;
+        white-space: normal;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .code {
+        color: var(--muted2);
+        font-size: .82rem;
+        margin-top: 4px;
+        letter-spacing: .03em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .rightBlock {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 0 0 auto;
+    }
+
+    .tierStar {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(17,24,39,.12);
+        background: rgba(255,255,255,.95);
+        font-weight: 900;
+        font-size: .88rem;
+        color: var(--text);
+        white-space: nowrap;
+    }
+
+        .tierStar i {
+            font-size: 1rem;
+        }
+
+    .pts {
+        font-size: .82rem;
+        color: var(--muted);
+        font-weight: 900;
+    }
+
+    .bronze i {
+        color: var(--bronze);
+    }
+
+    .silver i {
+        color: var(--silver);
+    }
+
+    .gold i {
+        color: var(--gold);
+    }
+
+    .label {
+        font-weight: 900;
+        margin-bottom: 6px;
+    }
+
+    .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .tiny {
+        font-size: .9rem;
+        color: var(--muted);
+    }
+
+    .mt10 {
+        margin-top: 10px;
+    }
+
+    .twoCol {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        align-items: end;
+    }
+
+    @@media (max-width: 520px) {
+        .twoCol {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .checkRow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .checkRowEnd {
+        justify-content: flex-end;
+    }
+
+    .checkLabel {
+        font-weight: 900;
+    }
+
+    .btnRowRight {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .tierGrid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .tierCard {
+        width: 100%;
+        border-radius: 14px;
+        border: 1px solid rgba(17,24,39,.12);
+        background: rgba(255,255,255,.96);
+        padding: 12px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-align: left;
+        cursor: pointer;
+        transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+        min-width: 0;
+        justify-content: space-between;
+    }
+
+        .tierCard:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 22px rgba(15,23,42,.08);
+            border-color: rgba(243,166,184,.55);
+        }
+
+        .tierCard.active {
+            border-color: rgba(243,166,184,.85);
+            box-shadow: 0 0 0 3px rgba(243,166,184,.20);
+            background: linear-gradient(180deg, rgba(243,166,184,.12), rgba(255,255,255,.96));
+        }
+
+    .tierIcon {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        border: 1px solid rgba(17,24,39,.10);
+        background: rgba(15,23,42,.03);
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+    }
+
+        .tierIcon i {
+            font-size: 1.15rem;
+        }
+
+    .tierMeta {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .tierName {
+        font-weight: 900;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .tierSub {
+        color: var(--muted);
+        font-size: .82rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .tierPts {
+        font-weight: 900;
+        color: var(--muted);
+        flex: 0 0 auto;
+    }
+
+    .tierCard.bronze .tierIcon i {
+        color: var(--bronze);
+    }
+
+    .tierCard.silver .tierIcon i {
+        color: var(--silver);
+    }
+
+    .tierCard.gold .tierIcon i {
+        color: var(--gold);
+    }
+
+    .badgePreview {
+        width: 100%;
+        border-radius: 14px;
+        border: 1px solid rgba(17,24,39,.10);
+        background: rgba(255,255,255,.92);
+        padding: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    .badgeIcon {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        border: 1px solid rgba(17,24,39,.10);
+        background: var(--brandSoft);
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+    }
+
+        .badgeIcon i {
+            font-size: 1.25rem;
+        }
+
+    .badgeText {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .badgeName {
+        font-weight: 900;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .badgeTier {
+        margin-top: 4px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(17,24,39,.12);
+        background: rgba(255,255,255,.95);
+        font-weight: 900;
+        font-size: .86rem;
+        color: var(--text);
+        white-space: nowrap;
+    }
+
+        .badgeTier i {
+            font-size: 1rem;
+        }
+
+    .badgePts {
+        font-size: .82rem;
+        color: var(--muted);
+        font-weight: 900;
+    }
+
+    .previewSticky {
+        position: sticky;
+        top: 14px;
+        z-index: 1;
+        max-height: calc(100vh - 90px);
+        max-height: calc(100dvh - 90px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .previewBody {
+        overflow: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    .previewHeader {
+        padding: 16px;
+        border-bottom: 1px solid rgba(17,24,39,.08);
+        background: linear-gradient(90deg, rgba(243,166,184,.18), rgba(0,0,0,0));
+    }
+
+    .previewActions {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .caps {
+        font-size: .82rem;
+        font-weight: 900;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--muted);
+    }
+
+    .barWrap {
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(17,24,39,.10);
+        overflow: hidden;
+        margin-top: 10px;
+    }
+
+    .barFill {
+        height: 10px;
+        border-radius: 999px;
+        background: var(--brand);
+    }
+
+    .sectionTitle {
+        font-weight: 900;
+        font-size: 1.02rem;
+    }
+
+    .tileGrid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+    }
+
+    @@media (max-width: 520px) {
+        .tileGrid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .tile {
+        border-radius: 14px;
+        border: 1px solid rgba(17,24,39,.10);
+        background: rgba(255,255,255,.96);
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-height: 92px;
+        min-width: 0;
+    }
+
+    .tileTop {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .tileIcon {
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        background: var(--brandSoft);
+        border: 1px solid rgba(17,24,39,.10);
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+    }
+
+        .tileIcon i {
+            font-size: 1.05rem;
+        }
+
+    .tileName {
+        font-weight: 900;
+        font-size: .86rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .tileMeta {
+        color: var(--muted);
+        font-size: .78rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .locked {
+        opacity: .55;
+        filter: grayscale(1);
+    }
+
+    .miniTier {
+        width: 30px;
+        height: 30px;
+        border-radius: 10px;
+        border: 1px solid rgba(17,24,39,.12);
+        background: rgba(255,255,255,.95);
+        display: grid;
+        place-items: center;
+    }
+
+        .miniTier i {
+            font-size: .95rem;
+        }
+</style>
+
+@code {
+    private string? error;
+    private string? message;
+    private bool busy;
+
+    private string adminSearch = "";
+    private List<AdminRowVm> adminRows = new();
+    private List<AdminRowVm> filteredAdmin = new();
+
+    private EditorModel editor = new();
+
+    private CustomerSearchModel customerSearch = new();
+    private string selectedCustomerId = "";
+    private string selectedCustomerEmail = "";
+
+    private int totalCount;
+    private int unlockedCount;
+    private int unlockPct;
+    private string unlockPctText = "0%";
+
+    private List<TileVm> unlockedTiles = new();
+    private List<TileVm> lockedTiles = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAdminData();
+    }
+
+    private static int TierRank(string? tierName)
+    {
+        return tierName?.Trim().ToLowerInvariant() switch
+        {
+            "gold" => 3,
+            "silver" => 2,
+            "bronze" => 1,
+            _ => 0
+        };
+    }
+
+    private void PickBronze()
+    {
+        editor.TierName = "Bronze";
+        editor.PointsAwarded = 5;
+    }
+
+    private void PickSilver()
+    {
+        editor.TierName = "Silver";
+        editor.PointsAwarded = 15;
+    }
+
+    private void PickGold()
+    {
+        editor.TierName = "Gold";
+        editor.PointsAwarded = 30;
+    }
+
+    private async Task ReloadAdminData()
+    {
+        error = null;
+        message = null;
+        busy = true;
+
+        try
+        {
+            var list = await Db.Achievements
+                .AsNoTracking()
+                .Include(a => a.Tiers)
+                .OrderBy(a => a.Name)
+                .ToListAsync();
+
+            adminRows = list.Select(a =>
+            {
+                var t = a.Tiers?.Where(x => x.IsActive)
+                    .OrderByDescending(x => TierRank(x.TierName))
+                    .ThenByDescending(x => x.SortOrder)
+                    .FirstOrDefault();
+
+                return new AdminRowVm
+                {
+                    AchievementId = a.AchievementId,
+                    Code = a.Code ?? "",
+                    Name = a.Name ?? "",
+                    Description = a.Description ?? "",
+                    IconCss = string.IsNullOrWhiteSpace(a.IconCss) ? "bi bi-trophy-fill" : a.IconCss!,
+                    TierName = t?.TierName ?? "Bronze",
+                    Points = t?.PointsAwarded ?? 0,
+                    IsActive = a.IsActive
+                };
+            }).ToList();
+
+            ApplyAdminFilter();
+        }
+        catch
+        {
+            error = "Failed to load achievements.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void OnAdminSearchInput(ChangeEventArgs e)
+    {
+        adminSearch = (e.Value?.ToString() ?? "").Trim();
+        ApplyAdminFilter();
+    }
+
+    private void ApplyAdminFilter()
+    {
+        var f = (adminSearch ?? "").Trim().ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(f))
+        {
+            filteredAdmin = adminRows.ToList();
+            return;
+        }
+
+        filteredAdmin = adminRows.Where(a =>
+            (a.Code ?? "").ToLowerInvariant().Contains(f) ||
+            (a.Name ?? "").ToLowerInvariant().Contains(f) ||
+            (a.Description ?? "").ToLowerInvariant().Contains(f)
+        ).ToList();
+    }
+
+    private void NewAchievement()
+    {
+        error = null;
+        message = null;
+
+        editor = new EditorModel
+        {
+            AchievementId = 0,
+            Code = "",
+            Name = "",
+            Description = "",
+            IconCss = "bi bi-trophy-fill",
+            TierName = "Bronze",
+            PointsAwarded = 5,
+            IsActive = true
+        };
+    }
+
+    private async Task LoadForEdit(int id)
+    {
+        error = null;
+        message = null;
+        busy = true;
+
+        try
+        {
+            var a = await Db.Achievements.Include(x => x.Tiers).FirstOrDefaultAsync(x => x.AchievementId == id);
+            if (a == null)
+            {
+                error = "Achievement not found.";
+                return;
+            }
+
+            var t = a.Tiers?.Where(x => x.IsActive)
+                .OrderByDescending(x => TierRank(x.TierName))
+                .ThenByDescending(x => x.SortOrder)
+                .FirstOrDefault();
+
+            editor = new EditorModel
+            {
+                AchievementId = a.AchievementId,
+                Code = a.Code ?? "",
+                Name = a.Name ?? "",
+                Description = a.Description ?? "",
+                IconCss = string.IsNullOrWhiteSpace(a.IconCss) ? "bi bi-trophy-fill" : a.IconCss!,
+                TierName = t?.TierName ?? "Bronze",
+                PointsAwarded = t?.PointsAwarded ?? 0,
+                IsActive = a.IsActive
+            };
+        }
+        catch
+        {
+            error = "Failed to load achievement.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task SaveAchievement()
+    {
+        error = null;
+        message = null;
+        busy = true;
+
+        try
+        {
+            var code = (editor.Code ?? "").Trim();
+            var name = (editor.Name ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(name))
+            {
+                error = "Code and Name are required.";
+                return;
+            }
+
+            var codeUpper = code.ToUpperInvariant();
+
+            var dup = await Db.Achievements
+                .AsNoTracking()
+                .AnyAsync(x => x.Code == codeUpper && x.AchievementId != editor.AchievementId);
+
+            if (dup)
+            {
+                error = "Code must be unique.";
+                return;
+            }
+
+            Achievement a;
+
+            if (editor.AchievementId == 0)
+            {
+                a = new Achievement();
+                Db.Achievements.Add(a);
+            }
+            else
+            {
+                a = await Db.Achievements.Include(x => x.Tiers)
+                    .FirstOrDefaultAsync(x => x.AchievementId == editor.AchievementId)
+                    ?? throw new InvalidOperationException("Achievement not found.");
+            }
+
+            a.Code = codeUpper;
+            a.Name = name;
+            a.Description = (editor.Description ?? "").Trim();
+            a.IconCss = string.IsNullOrWhiteSpace(editor.IconCss) ? "bi bi-trophy-fill" : editor.IconCss.Trim();
+            a.IsActive = editor.IsActive;
+
+            await Db.SaveChangesAsync();
+
+            var tier = a.Tiers?.FirstOrDefault(x => x.IsActive) ?? a.Tiers?.FirstOrDefault();
+
+            if (tier == null)
+            {
+                tier = new AchievementTier
+                {
+                    AchievementId = a.AchievementId,
+                    SortOrder = 1,
+                    ConditionType = "Count",
+                    ConditionValue = 1,
+                    IsActive = true
+                };
+                Db.AchievementTiers.Add(tier);
+            }
+
+            tier.TierName = editor.TierName ?? "Bronze";
+            tier.PointsAwarded = Math.Max(0, editor.PointsAwarded);
+            tier.IsActive = true;
+            tier.SortOrder = 1;
+
+            await Db.SaveChangesAsync();
+
+            editor.AchievementId = a.AchievementId;
+
+            await ReloadAdminData();
+            message = "Saved.";
+        }
+        catch
+        {
+            error = "Failed to save.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void ClearEditor()
+    {
+        error = null;
+        message = null;
+        editor = new EditorModel();
+    }
+
+    private async Task FindCustomer()
+    {
+        error = null;
+        message = null;
+        busy = true;
+
+        try
+        {
+            selectedCustomerId = "";
+            selectedCustomerEmail = "";
+            unlockedTiles.Clear();
+            lockedTiles.Clear();
+            totalCount = 0;
+            unlockedCount = 0;
+            unlockPct = 0;
+            unlockPctText = "0%";
+
+            var email = (customerSearch.Email ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                error = "Enter an email.";
+                return;
+            }
+
+            var user = await Db.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null)
+            {
+                error = "Customer not found.";
+                return;
+            }
+
+            selectedCustomerId = user.Id;
+            selectedCustomerEmail = user.Email ?? "";
+
+            var all = await Db.Achievements
+                .AsNoTracking()
+                .Include(a => a.Tiers)
+                .Where(a => a.IsActive)
+                .OrderBy(a => a.AchievementId)
+                .ToListAsync();
+
+            totalCount = all.Count;
+
+            var totalUsers = await Db.Users.CountAsync();
+
+            var globalCounts = await Db.UserTierUnlocks
+                .AsNoTracking()
+                .Where(x => !x.IsRevoked)
+                .Join(Db.AchievementTiers.AsNoTracking(),
+                      u => u.AchievementTierId,
+                      t => t.AchievementTierId,
+                      (u, t) => new { t.AchievementId, u.UserId })
+                .Distinct()
+                .GroupBy(x => x.AchievementId)
+                .Select(g => new { AchievementId = g.Key, Count = g.Count() })
+                .ToListAsync();
+
+            var globalMap = globalCounts.ToDictionary(x => x.AchievementId, x => x.Count);
+
+            var myUnlocks = await Db.UserTierUnlocks
+                .AsNoTracking()
+                .Where(x => x.UserId == selectedCustomerId && !x.IsRevoked)
+                .Join(Db.AchievementTiers.AsNoTracking(),
+                      u => u.AchievementTierId,
+                      t => t.AchievementTierId,
+                      (u, t) => new { t.AchievementId, t.TierName, u.UnlockedAtUtc })
+                .ToListAsync();
+
+            var myMap = myUnlocks
+                .GroupBy(x => x.AchievementId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderByDescending(x => x.UnlockedAtUtc).First()
+                );
+
+            foreach (var a in all)
+            {
+                var tier = a.Tiers?.Where(x => x.IsActive)
+                    .OrderByDescending(x => TierRank(x.TierName))
+                    .ThenByDescending(x => x.SortOrder)
+                    .FirstOrDefault();
+
+                var tierName = tier?.TierName ?? "Bronze";
+
+                var gCount = globalMap.TryGetValue(a.AchievementId, out var c) ? c : 0;
+                var pct = totalUsers <= 0 ? 0 : (int)Math.Round((gCount / (double)totalUsers) * 100.0);
+                if (pct < 0) pct = 0;
+                if (pct > 100) pct = 100;
+
+                var isUnlocked = myMap.TryGetValue(a.AchievementId, out var mine);
+
+                var tile = new TileVm
+                {
+                    AchievementId = a.AchievementId,
+                    Name = a.Name ?? "",
+                    IconCss = string.IsNullOrWhiteSpace(a.IconCss) ? "bi bi-trophy-fill" : a.IconCss!,
+                    TierName = tierName,
+                    GlobalPctText = $"{pct}%",
+                    UnlockedAtText = isUnlocked ? mine!.UnlockedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm") : ""
+                };
+
+                if (isUnlocked) unlockedTiles.Add(tile);
+                else lockedTiles.Add(tile);
+            }
+
+            unlockedCount = unlockedTiles.Count;
+
+            unlockPct = totalCount == 0 ? 0 : (int)Math.Round((unlockedCount / (double)totalCount) * 100.0);
+            if (unlockPct < 0) unlockPct = 0;
+            if (unlockPct > 100) unlockPct = 100;
+            unlockPctText = $"{unlockPct}%";
+
+            message = "Customer loaded.";
+        }
+        catch
+        {
+            error = "Failed to load customer preview.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void ClearCustomer()
+    {
+        error = null;
+        message = null;
+        customerSearch = new();
+        selectedCustomerId = "";
+        selectedCustomerEmail = "";
+        unlockedTiles.Clear();
+        lockedTiles.Clear();
+        totalCount = 0;
+        unlockedCount = 0;
+        unlockPct = 0;
+        unlockPctText = "0%";
+    }
+
+    private string TierClass(string tier)
+    {
+        var t = (tier ?? "").Trim().ToLowerInvariant();
+        if (t == "gold") return "gold";
+        if (t == "silver") return "silver";
+        return "bronze";
+    }
+
+    private class AdminRowVm
+    {
+        public int AchievementId { get; set; }
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string IconCss { get; set; } = "bi bi-trophy-fill";
+        public string TierName { get; set; } = "Bronze";
+        public int Points { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    private class EditorModel
+    {
+        public int AchievementId { get; set; }
+
+        [Required, MaxLength(60)]
+        public string Code { get; set; } = "";
+
+        [Required, MaxLength(120)]
+        public string Name { get; set; } = "";
+
+        [MaxLength(500)]
+        public string Description { get; set; } = "";
+
+        [MaxLength(300)]
+        public string IconCss { get; set; } = "bi bi-trophy-fill";
+
+        [Required]
+        public string TierName { get; set; } = "Bronze";
+
+        [Range(0, 100000)]
+        public int PointsAwarded { get; set; } = 5;
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    private class CustomerSearchModel
+    {
+        [EmailAddress]
+        public string Email { get; set; } = "";
+    }
+
+    private class TileVm
+    {
+        public int AchievementId { get; set; }
+        public string Name { get; set; } = "";
+        public string IconCss { get; set; } = "bi bi-trophy-fill";
+        public string TierName { get; set; } = "Bronze";
+        public string GlobalPctText { get; set; } = "0%";
+        public string UnlockedAtText { get; set; } = "";
+    }
+}
+

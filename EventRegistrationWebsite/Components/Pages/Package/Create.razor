@@ -1,64 +1,648 @@
-﻿@*force commit packages*@
-@page "/packages/create"
-@using EventRegistrationWebsite.Models
-@using Microsoft.AspNetCore.Components.Forms
-@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
-@inject NavigationManager Navigation
-@using Microsoft.EntityFrameworkCore
+﻿@page "/packages/create"
 @rendermode InteractiveServer
+
+@using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.EntityFrameworkCore
+@using EventRegistrationWebsite.Models
+
 @attribute [Authorize(Roles = "Admin")]
 
+@inject EventRegistrationWebsite.Data.ApplicationDbContext Db
+@inject NavigationManager Nav
+@inject IWebHostEnvironment Env
 
-<h3>Create Package</h3>
+<style>
+    .pkgPage {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 18px 16px 30px 16px;
+    }
 
-<EditForm Model="@packageModel" OnValidSubmit="Save" FormName="CreatePackageForm">
-    <DataAnnotationsValidator/>
-    <ValidationSummary/>
+    .pkgHead {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
 
-    <div class="mb-3">
-        <label>Package Name</label>
-        <InputText class="form-control" @bind-Value="packageModel.PackageName" />
+        .pkgHead h2 {
+            margin: 0;
+            font-weight: 750;
+            letter-spacing: .2px;
+        }
+
+    .pkgSub {
+        color: rgba(0,0,0,.62);
+        margin-top: 4px;
+        max-width: 780px;
+    }
+
+    .pkgGrid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
+        gap: 16px;
+        align-items: start;
+    }
+
+    @@media (max-width: 992px) {
+        .pkgGrid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .cardSoft {
+        border-radius: 16px;
+        border: 1px solid rgba(0,0,0,.08);
+        box-shadow: 0 10px 24px rgba(0,0,0,.06);
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .cardPad {
+        padding: 16px;
+    }
+
+    .sectionTitle {
+        font-weight: 750;
+        margin: 0 0 10px 0;
+    }
+
+    .help {
+        font-size: 12px;
+        color: rgba(0,0,0,.60);
+        margin-top: 6px;
+    }
+
+    .coverPreview {
+        width: 100%;
+        height: 220px;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid rgba(0,0,0,.08);
+        background: linear-gradient(180deg, rgba(0,0,0,.04), rgba(0,0,0,.02));
+        display: grid;
+        place-items: center;
+    }
+
+        .coverPreview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        padding: 6px 10px;
+        border: 1px solid rgba(0,0,0,.10);
+        background: rgba(0,0,0,.03);
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    .eventsList {
+        display: grid;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .evRow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px;
+        border-radius: 14px;
+        border: 1px solid rgba(0,0,0,.08);
+        background: rgba(0,0,0,.02);
+    }
+
+    .evName {
+        font-weight: 650;
+    }
+
+    .evMeta {
+        font-size: 12px;
+        color: rgba(0,0,0,.60);
+        margin-top: 2px;
+    }
+
+    .miniBtns {
+        display: flex;
+        gap: 6px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .divider {
+        height: 1px;
+        background: rgba(0,0,0,.08);
+        margin: 14px 0;
+    }
+
+    .previewPrice {
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: .2px;
+    }
+
+    .strike {
+        text-decoration: line-through;
+        color: rgba(0,0,0,.45);
+        font-size: 13px;
+        margin-left: 8px;
+        font-weight: 650;
+    }
+
+    .kv {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 8px;
+        font-size: 13px;
+        color: rgba(0,0,0,.70);
+    }
+
+        .kv b {
+            color: rgba(0,0,0,.88);
+        }
+
+    .stickyRight {
+        position: sticky;
+        top: 14px;
+    }
+
+    .errBox {
+        border-radius: 14px;
+        padding: 10px 12px;
+        border: 1px solid rgba(220,53,69,.25);
+        background: rgba(220,53,69,.06);
+        color: rgba(120,0,0,.95);
+        margin-bottom: 12px;
+    }
+</style>
+
+<div class="pkgPage">
+    <div class="pkgHead">
+        <div>
+            <h2>Create Package</h2>
+            <div class="pkgSub">
+                Klook style bundle builder with cover image, badge, and a neat included events list you can order.
+            </div>
+        </div>
     </div>
 
-    <div class="mb-3">
-        <label>Description</label>
-        <InputTextArea class="form-control" @bind-Value="packageModel.Description" />
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="errBox">@error</div>
+    }
 
-    </div>
-    <div class="mb-3">
-        <label>Price</label>
-        <InputNumber class="form-control" @bind-Value="packageModel.Price" />
-    </div>
+    <EditForm Model="@model" OnValidSubmit="Save" FormName="CreatePackageForm" autocomplete="off">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
 
-    <div class="mb-3">
-        <label>Event</label>
-        <InputSelect class="form-control" @bind-Value="packageModel.EventID">
-            <option value="0">-- Select Event --</option>
-            @foreach (var e in events)
-            {
-                <option value="@e.EventID">@e.Title</option>
-            }
-        </InputSelect>
-    </div>
-    <button type="submit" class="btn btn-primary">Create</button>
-    <a class="btn btn-secondary" href="/packages">Cancel</a>
-</EditForm>
+        <div class="pkgGrid">
 
-@code{
-    private Package packageModel = new();
-    private List<Event> events = new();
+            <!-- LEFT -->
+            <div>
+
+                <!-- Details -->
+                <div class="cardSoft">
+                    <div class="cardPad">
+                        <h5 class="sectionTitle">Package details</h5>
+
+                        <div class="mb-3">
+                            <label class="form-label">Package name</label>
+                            <InputText class="form-control" @bind-Value="model.PackageName" />
+                            <div class="help">Keep it short and saleable.</div>
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Badge</label>
+                                <select class="form-select" @bind="badge">
+                                    <option value="">None</option>
+                                    <option value="Best Seller">Best Seller</option>
+                                    <option value="Limited Time">Limited Time</option>
+                                    <option value="Editor Pick">Editor Pick</option>
+                                    <option value="Value Deal">Value Deal</option>
+                                </select>
+                                <div class="help">Optional. Helps packages feel premium.</div>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Status</label>
+                                <div class="form-check mt-2">
+                                    <InputCheckbox class="form-check-input" @bind-Value="model.IsActive" />
+                                    <label class="form-check-label">Active</label>
+                                </div>
+                                <div class="help">Inactive packages stay hidden.</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <label class="form-label">Description</label>
+                            <InputTextArea class="form-control" @bind-Value="model.Description" rows="4" />
+                            <div class="help">Short, value focused. Mention perks.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pricing -->
+                <div class="cardSoft mt-3">
+                    <div class="cardPad">
+                        <h5 class="sectionTitle">Pricing</h5>
+
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Price (SGD)</label>
+                                <InputNumber class="form-control" @bind-Value="model.Price" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Original total (optional)</label>
+                                <InputNumber class="form-control" @bind-Value="model.OriginalTotalPrice" />
+                                <div class="help">Used to show savings.</div>
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mt-2">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Max per user (0 unlimited)</label>
+                                <InputNumber class="form-control" @bind-Value="model.MaxPerUser" />
+                            </div>
+                            <div class="col-12 col-md-6 d-flex align-items-end">
+                                <div class="pill">
+                                    <span>Events</span>
+                                    <b>@included.Count</b>
+                                </div>
+                                <div class="pill">
+                                    <span>Savings</span>
+                                    <b>@SavingsText</b>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cover image -->
+                <div class="cardSoft mt-3">
+                    <div class="cardPad">
+                        <h5 class="sectionTitle">Cover image</h5>
+
+                        <div class="coverPreview mb-2">
+                            @if (!string.IsNullOrWhiteSpace(coverPreviewUrl))
+                            {
+                                <img src="@coverPreviewUrl" alt="Package cover preview" />
+                            }
+                            else
+                            {
+                                <div class="text-muted small">Recommended 16:9. Same idea as your Event header.</div>
+                            }
+                        </div>
+
+                        <InputFile OnChange="OnCoverSelected" accept="image/*" />
+                        @if (!string.IsNullOrWhiteSpace(coverError))
+                        {
+                            <div class="text-danger small mt-2">@coverError</div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Included events -->
+                <div class="cardSoft mt-3">
+                    <div class="cardPad">
+                        <h5 class="sectionTitle">Included events</h5>
+                        <div class="help">Search, add, then order them like a real bundle.</div>
+
+                        <div class="row g-2 mt-2">
+                            <div class="col-12 col-md-7">
+                                <InputText class="form-control" @bind-Value="search" placeholder="Search events by title" />
+                            </div>
+                            <div class="col-12 col-md-5">
+                                <select class="form-select" @bind="selectedEventId">
+                                    <option value="0">Select event</option>
+                                    @foreach (var e in FilteredEvents)
+                                    {
+                                        <option value="@e.EventID">@e.Title</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mt-2 d-flex gap-2">
+                            <button type="button" class="btn btn-outline-primary" @onclick="AddSelected">Add</button>
+                            <div class="help">@minRuleText</div>
+                        </div>
+
+                        @if (included.Count > 0)
+                        {
+                            <div class="eventsList">
+                                @for (int i = 0; i < included.Count; i++)
+                                {
+                                    var row = included[i];
+                                    <div class="evRow">
+                                        <div>
+                                            <div class="evName">@row.Title</div>
+                                            <div class="evMeta">
+                                                @($"{row.StartDate:dd MMM yyyy} to {row.EndDate:dd MMM yyyy}")
+                                                @if (!string.IsNullOrWhiteSpace(row.EventType))
+                                                {
+                                                    <span>• @row.EventType</span>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="miniBtns">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@(i == 0)" @onclick="() => Move(i, -1)">Up</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@(i == included.Count - 1)" @onclick="() => Move(i, 1)">Down</button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => Remove(i)">Remove</button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted small mt-2">Add events to show bundle contents.</div>
+                        }
+
+                        <div class="divider"></div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" disabled="@(!CanSave)">Create package</button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="Cancel">Cancel</button>
+                        </div>
+
+                        @if (!CanSave)
+                        {
+                            <div class="help mt-2">Add at least 2 events for a bundle.</div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT -->
+            <div class="stickyRight">
+                <div class="cardSoft">
+                    <div class="cardPad">
+                        <h5 class="sectionTitle">Live preview</h5>
+                        <div class="help mb-2">How it will feel to customers.</div>
+
+                        <div class="coverPreview mb-3" style="height: 170px;">
+                            @if (!string.IsNullOrWhiteSpace(coverPreviewUrl))
+                            {
+                                <img src="@coverPreviewUrl" alt="Preview cover" />
+                            }
+                            else
+                            {
+                                <div class="text-muted small">Cover image</div>
+                            }
+                        </div>
+
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div style="min-width:0;">
+                                <div class="fw-bold" style="font-size: 16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                    @PreviewName
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(badge))
+                                {
+                                    <div class="pill mt-2">@badge</div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="text-muted small mt-2">@PreviewDesc</div>
+
+                        <div class="mt-3">
+                            <span class="previewPrice">@($"{model.Price:0.00}")</span>
+                            <span class="text-muted"> SGD</span>
+                            @if (model.OriginalTotalPrice.HasValue && model.OriginalTotalPrice.Value > model.Price)
+                            {
+                                <span class="strike">@($"{model.OriginalTotalPrice.Value:0.00}")</span>
+                            }
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <div class="kv">
+                            <span>Events</span>
+                            <b>@included.Count</b>
+                        </div>
+
+                        <div class="kv">
+                            <span>Limit</span>
+                            <b>@(model.MaxPerUser <= 0 ? "Unlimited" : model.MaxPerUser.ToString())</b>
+                        </div>
+
+                        <div class="kv">
+                            <span>Status</span>
+                            <b>@(model.IsActive ? "Active" : "Inactive")</b>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <div class="fw-semibold mb-2">Included</div>
+                        @if (included.Count == 0)
+                        {
+                            <div class="text-muted small">Add events to show bundle contents.</div>
+                        }
+                        else
+                        {
+                            <ol class="small mb-0">
+                                @foreach (var it in included)
+                                {
+                                    <li>@it.Title</li>
+                                }
+                            </ol>
+                        }
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    private string? error;
+
+    private Package model = new();
+    private string badge = "";
+
+    private List<Event> allEvents = new();
+    private string search = "";
+    private int selectedEventId = 0;
+
+    private List<Event> included = new();
+
+    private IBrowserFile? coverFile;
+    private string? coverPreviewUrl;
+    private string? coverError;
 
     protected override async Task OnInitializedAsync()
     {
-        events = await Db.Events.ToListAsync();
+        allEvents = await Db.Events
+            .OrderBy(x => x.Title)
+            .ToListAsync();
     }
+
+    private IEnumerable<Event> FilteredEvents
+    {
+        get
+        {
+            var q = (search ?? "").Trim();
+            var set = string.IsNullOrWhiteSpace(q)
+                ? allEvents
+                : allEvents.Where(e => (e.Title ?? "").Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            var usedIds = included.Select(x => x.EventID).ToHashSet();
+            return set.Where(e => !usedIds.Contains(e.EventID)).Take(40);
+        }
+    }
+
+    private string PreviewName => string.IsNullOrWhiteSpace(model.PackageName) ? "Package name" : model.PackageName;
+    private string PreviewDesc => string.IsNullOrWhiteSpace(model.Description) ? "Short value focused description" : model.Description!;
+    private string minRuleText => "Add at least 2 events for a bundle.";
+
+    private bool CanSave => included.Count >= 2;
+
+    private string SavingsText
+    {
+        get
+        {
+            if (!model.OriginalTotalPrice.HasValue) return "0";
+            var o = model.OriginalTotalPrice.Value;
+            if (o <= model.Price) return "0";
+            return $"{(o - model.Price):0.00}";
+        }
+    }
+
+    private void AddSelected()
+    {
+        if (selectedEventId <= 0) return;
+
+        var ev = allEvents.FirstOrDefault(x => x.EventID == selectedEventId);
+        if (ev == null) return;
+
+        included.Add(ev);
+        selectedEventId = 0;
+    }
+
+    private void Remove(int index)
+    {
+        if (index < 0 || index >= included.Count) return;
+        included.RemoveAt(index);
+    }
+
+    private void Move(int index, int delta)
+    {
+        var to = index + delta;
+        if (index < 0 || index >= included.Count) return;
+        if (to < 0 || to >= included.Count) return;
+
+        var item = included[index];
+        included.RemoveAt(index);
+        included.Insert(to, item);
+    }
+
+    private async Task OnCoverSelected(InputFileChangeEventArgs e)
+    {
+        coverError = null;
+        coverFile = null;
+        coverPreviewUrl = null;
+
+        var f = e.File;
+        if (f == null) return;
+
+        if (!f.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            coverError = "Please upload an image file.";
+            return;
+        }
+
+        if (f.Size > 2_500_000)
+        {
+            coverError = "Image too large. Keep it under 2.5MB.";
+            return;
+        }
+
+        coverFile = f;
+
+        using var stream = f.OpenReadStream(maxAllowedSize: 2_500_000);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        var bytes = ms.ToArray();
+        coverPreviewUrl = $"data:{f.ContentType};base64,{Convert.ToBase64String(bytes)}";
+    }
+
     private async Task Save()
     {
-        packageModel.LastUpdatedOn = DateTime.Now;
-        packageModel.CreatedOn = DateTime.Now;
-        Db.Packages.Add(packageModel);
-        await Db.SaveChangesAsync();
-        Navigation.NavigateTo("/packages");
+        error = null;
+
+        if (!CanSave)
+        {
+            error = "Please add at least 2 events to create a bundle.";
+            return;
+        }
+
+        try
+        {
+            // Save package
+            model.CreatedOn = DateTime.Now;
+            model.LastUpdatedOn = DateTime.Now;
+
+            Db.Packages.Add(model);
+            await Db.SaveChangesAsync();
+
+            // Save included events as PackageEvents (your join table)
+            for (int i = 0; i < included.Count; i++)
+            {
+                Db.PackageEvents.Add(new PackageEvent
+                {
+                    PackageId = model.PackageID,
+                    EventID = included[i].EventID,
+                    SortOrder = i
+                });
+            }
+
+            await Db.SaveChangesAsync();
+
+            // Optional: store cover image file (requires you to have a field in Package like CoverImagePath)
+            // If your Package model already has CoverImagePath, uncomment this block and the property update.
+            /*
+            if (coverFile != null)
+            {
+                var uploads = Path.Combine(Env.WebRootPath, "uploads", "packages");
+                Directory.CreateDirectory(uploads);
+
+                var ext = Path.GetExtension(coverFile.Name);
+                var safeExt = string.IsNullOrWhiteSpace(ext) ? ".jpg" : ext;
+                var fileName = $"pkg_{model.PackageID}_{Guid.NewGuid():N}{safeExt}";
+                var path = Path.Combine(uploads, fileName);
+
+                await using var fs = File.Create(path);
+                await coverFile.OpenReadStream(2_500_000).CopyToAsync(fs);
+
+                model.CoverImagePath = $"/uploads/packages/{fileName}";
+                await Db.SaveChangesAsync();
+            }
+            */
+
+            Nav.NavigateTo("/admin/packages");
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private void Cancel()
+    {
+        Nav.NavigateTo("/admin/packages");
     }
 }

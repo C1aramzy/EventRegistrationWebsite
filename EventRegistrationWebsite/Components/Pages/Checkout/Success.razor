@@ -1,0 +1,269 @@
+﻿@page "/checkout/success"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+
+@inject ApplicationDbContext Db
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+
+<style>
+    .wrap {
+        max-width: 900px;
+        margin: auto;
+        padding: 20px;
+    }
+
+    .hero {
+        border-radius: 18px;
+        padding: 18px;
+        background: linear-gradient(135deg, rgba(255,56,155,.18), rgba(255,255,255,.85));
+        border: 1px solid rgba(255,56,155,.28);
+        box-shadow: 0 12px 30px rgba(0,0,0,.08);
+    }
+
+    h2 {
+        margin: 0;
+        font-weight: 800;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-weight: 700;
+        background: rgba(16,185,129,.15);
+        border: 1px solid rgba(16,185,129,.3);
+        color: #065f46;
+        margin-left: 8px;
+    }
+
+    .grid {
+        margin-top: 18px;
+        display: grid;
+        gap: 16px;
+    }
+
+    @@media (min-width: 992px) {
+        .grid {
+            grid-template-columns: 1.2fr .8fr;
+        }
+    }
+
+    .card {
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid rgba(0,0,0,.08);
+        box-shadow: 0 8px 24px rgba(0,0,0,.06);
+    }
+
+    .card-h {
+        padding: 14px 16px;
+        border-bottom: 1px solid rgba(0,0,0,.06);
+        font-weight: 800;
+    }
+
+    .card-b {
+        padding: 16px;
+        font-size: 14px;
+    }
+
+    .kv {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 10px;
+    }
+
+    .k {
+        font-weight: 700;
+        color: rgba(0,0,0,.55);
+    }
+
+    .v {
+        font-weight: 650;
+    }
+
+    .code {
+        font-family: monospace;
+        background: rgba(0,0,0,.05);
+        padding: 2px 6px;
+        border-radius: 6px;
+        border: 1px solid rgba(0,0,0,.1);
+    }
+
+    .btnRow {
+        margin-top: 14px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .btnMain {
+        background: #ff389b;
+        color: #fff;
+        border: none;
+        padding: 10px 16px;
+        border-radius: 12px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .btnGhost {
+        background: rgba(255,56,155,.1);
+        border: 1px solid rgba(255,56,155,.3);
+        padding: 10px 16px;
+        border-radius: 12px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .warn {
+        background: rgba(245,158,11,.12);
+        border: 1px solid rgba(245,158,11,.3);
+        padding: 12px;
+        border-radius: 12px;
+        font-weight: 700;
+        color: #92400e;
+    }
+
+    .err {
+        background: rgba(239,68,68,.12);
+        border: 1px solid rgba(239,68,68,.3);
+        padding: 12px;
+        border-radius: 12px;
+        font-weight: 700;
+        color: #991b1b;
+    }
+</style>
+
+<div class="wrap">
+    <div class="hero">
+        <h2>
+            Payment Successful
+            @if (!loading && tx != null)
+            {
+                <span class="badge">Confirmed</span>
+            }
+        </h2>
+
+        <p class="mt-2 text-muted">
+            Thank you for your purchase. Your transaction has been recorded.
+        </p>
+
+        <div class="btnRow">
+            <button class="btnMain" @onclick="GoTickets">My Tickets</button>
+            <button class="btnGhost" @onclick="GoBrowse">Browse Events</button>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <div class="card-h">Transaction Details</div>
+            <div class="card-b">
+
+                @if (loading)
+                {
+                    <div class="warn">Loading transaction…</div>
+                }
+                else if (!string.IsNullOrWhiteSpace(error))
+                {
+                    <div class="err">@error</div>
+                }
+                else if (tx == null)
+                {
+                    <div class="warn">No transaction found.</div>
+                }
+                else
+                {
+                    <div class="kv">
+                        <div class="k">Reference</div>
+                        <div class="v"><span class="code">@tx.ReferenceCode</span></div>
+
+                        <div class="k">Amount</div>
+                        <div class="v">@($"{tx.Amount:0.00} {tx.Currency}")</div>
+
+                        <div class="k">Status</div>
+                        <div class="v">@tx.Status</div>
+
+                        <div class="k">Method</div>
+                        <div class="v">@tx.PaymentMethod</div>
+
+                        <div class="k">Date</div>
+                        <div class="v">@tx.CreatedOn.ToLocalTime().ToString("dd MMM yyyy HH:mm")</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-h">Next Steps</div>
+            <div class="card-b">
+                <p>
+                    Your tickets are available under <b>My Tickets</b>.
+                    Each ticket includes a QR code for entry.
+                </p>
+
+                <p>
+                    If the event has already ended, the ticket will remain as a receipt.
+                </p>
+
+                @if (tx != null)
+                {
+                    <p>
+                        For support, quote reference
+                        <span class="code">@tx.ReferenceCode</span>.
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private PaymentTransaction? tx;
+    private bool loading = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+
+            if (user?.Identity?.IsAuthenticated != true)
+            {
+                error = "You are not signed in.";
+                return;
+            }
+
+            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                error = "Invalid user session.";
+                return;
+            }
+
+            tx = await Db.PaymentTransactions
+                .AsNoTracking()
+                .Where(x => x.UserId == userId && x.Status == "Success")
+                .OrderByDescending(x => x.PaymentTransactionId)
+                .FirstOrDefaultAsync();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void GoTickets() => Nav.NavigateTo("/account/tickets");
+    private void GoBrowse() => Nav.NavigateTo("/browse");
+}

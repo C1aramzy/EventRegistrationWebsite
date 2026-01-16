@@ -1,6 +1,7 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Collections.Generic;
 
 namespace EventRegistrationWebsite.Models
 {
@@ -27,6 +28,12 @@ namespace EventRegistrationWebsite.Models
         public string? VenueAddress { get; set; }
         public string? PostalCode { get; set; }
         public string? UnitRoom { get; set; }
+        public string? CreatedByUserId { get; set; }
+        public string? CreatedByName { get; set; }    
+        public bool CreatedByAdmin { get; set; }
+
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
 
         public string? EventType { get; set; }
         public string? EventTypeOther { get; set; }
@@ -58,8 +65,8 @@ namespace EventRegistrationWebsite.Models
 
         public DateTime? EarlyBirdEndsOn { get; set; }
         public decimal? EarlyBirdPrice { get; set; }
-
         public int TotalViews { get; set; }
+
 
         [NotMapped]
         public string ComputedStatus
@@ -75,5 +82,16 @@ namespace EventRegistrationWebsite.Models
                 return "Ongoing";
             }
         }
+
+        public string CreatedByDisplay
+        {
+            get
+            {
+                if (CreatedByAdmin) return "Event Registration Company";
+                if (!string.IsNullOrWhiteSpace(CreatedByName)) return CreatedByName!;
+                return "Event Registration Company";
+            }
+        }
+
     }
 }

@@ -1,0 +1,90 @@
+﻿@page "/checkout/cancel"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using EventRegistrationWebsite.Data
+@using System.Security.Claims
+
+@attribute [Authorize]
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<h3 class="mb-3">Payment not completed</h3>
+
+@if (isLoading)
+{
+    <div class="alert alert-info">Updating checkout…</div>
+}
+else
+{
+    <div class="alert alert-warning">
+        Your payment was cancelled or failed. No tickets were issued.
+    </div>
+
+    @if (eventId.HasValue)
+    {
+        <button class="btn btn-primary" @onclick='() => Nav.NavigateTo($"/events/tickets/{eventId.Value}")'>
+            Return to checkout
+        </button>
+    }
+    else
+    {
+        <button class="btn btn-primary" @onclick='() => Nav.NavigateTo("/events/browse")'>
+            Return to events
+        </button>
+    }
+}
+
+@code {
+    private bool isLoading = true;
+    private int? eventId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var uri = new Uri(Nav.Uri);
+            var qs = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var paymentIdRaw = qs.Get("paymentId");
+
+            if (!int.TryParse(paymentIdRaw, out var paymentId))
+            {
+                return;
+            }
+
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(userId)) return;
+
+            var tx = await Db.PaymentTransactions.FirstOrDefaultAsync(x => x.PaymentTransactionId == paymentId);
+            if (tx == null || tx.UserId != userId) return;
+
+            if (tx.Status == "Pending")
+            {
+                tx.Status = "Cancelled";
+                await Db.SaveChangesAsync();
+            }
+
+            var draft = await Db.OrderDrafts.FirstOrDefaultAsync(d => d.OrderDraftId == tx.OrderDraftId && d.UserId == userId);
+            if (draft != null)
+            {
+                eventId = draft.EventID;
+
+                if (draft.Status == "Pending")
+                {
+                    draft.Status = "Cancelled";
+                    await Db.SaveChangesAsync();
+                }
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

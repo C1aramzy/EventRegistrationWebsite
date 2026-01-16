@@ -8,6 +8,7 @@
 @using System.Threading
 @using System.Threading.Tasks
 @using System.Globalization
+@using System.Security.Claims
 
 @using EventRegistrationWebsite.Models
 @using Microsoft.AspNetCore.Authorization
@@ -18,12 +19,12 @@
 @inject NavigationManager Navigation
 @inject IWebHostEnvironment Env
 @inject OneMapService OneMap
+@inject AuthenticationStateProvider AuthStateProvider
 
-@attribute [Authorize(Roles = "Admin")]
 
 <h3>Create Event</h3>
 
-<EditForm Model="@eventModel" OnValidSubmit="Save" FormName="CreateEventForm">
+<EditForm Model="@eventModel" OnValidSubmit="Save" FormName="CreateEventForm" autocomplete="off">
     <DataAnnotationsValidator />
     <ValidationSummary />
 
@@ -34,17 +35,30 @@
 
                     <div class="mb-3">
                         <label class="form-label">Title</label>
-                        <InputText class="form-control" @bind-Value="eventModel.Title" />
+                        <InputText class="form-control"
+                                   @bind-Value="eventModel.Title"
+                                   autocomplete="off"
+                                   autocapitalize="off"
+                                   spellcheck="false" />
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Summary (short tagline)</label>
-                        <InputText class="form-control" @bind-Value="eventModel.Summary" />
+                        <InputText class="form-control"
+                                   @bind-Value="eventModel.Summary"
+                                   autocomplete="off"
+                                   autocapitalize="off"
+                                   spellcheck="false" />
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Description</label>
-                        <InputTextArea class="form-control" @bind-Value="eventModel.Description" rows="5" />
+                        <InputTextArea class="form-control"
+                                       @bind-Value="eventModel.Description"
+                                       rows="5"
+                                       autocomplete="off"
+                                       autocapitalize="off"
+                                       spellcheck="false" />
                     </div>
 
                     <div class="row g-2">
@@ -64,14 +78,16 @@
                             <input type="time"
                                    class="form-control"
                                    value="@startTimeText"
-                                   @oninput="OnStartTimeInput" />
+                                   @oninput="OnStartTimeInput"
+                                   autocomplete="off" />
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label">End Time</label>
                             <input type="time"
                                    class="form-control"
                                    value="@endTimeText"
-                                   @oninput="OnEndTimeInput" />
+                                   @oninput="OnEndTimeInput"
+                                   autocomplete="off" />
                         </div>
                     </div>
 
@@ -80,7 +96,7 @@
                     <div class="row g-2">
                         <div class="col-12 col-md-6">
                             <label class="form-label">Event Type</label>
-                            <select class="form-select" value="@eventModel.EventType" @onchange="OnEventTypeChanged">
+                            <select class="form-select" value="@eventModel.EventType" @onchange="OnEventTypeChanged" autocomplete="off">
                                 <option value="">Select one</option>
                                 <option value="Workshop">Workshop</option>
                                 <option value="Training">Training</option>
@@ -97,7 +113,7 @@
 
                         <div class="col-12 col-md-6">
                             <label class="form-label">Vibe</label>
-                            <select class="form-select" @bind="eventModel.EventVibe">
+                            <select class="form-select" @bind="eventModel.EventVibe" autocomplete="off">
                                 <option value="">Optional</option>
                                 <option value="Beginner Friendly">Beginner Friendly</option>
                                 <option value="Hands On">Hands On</option>
@@ -114,7 +130,11 @@
                     {
                         <div class="mt-2">
                             <label class="form-label">Specify Event Type</label>
-                            <InputText class="form-control" @bind-Value="eventModel.EventTypeOther" />
+                            <InputText class="form-control"
+                                       @bind-Value="eventModel.EventTypeOther"
+                                       autocomplete="off"
+                                       autocapitalize="off"
+                                       spellcheck="false" />
                         </div>
                     }
 
@@ -217,7 +237,11 @@
                     {
                         <div class="mb-3">
                             <label class="form-label">Online Event URL</label>
-                            <InputText class="form-control" @bind-Value="eventModel.OnlineEventUrl" />
+                            <InputText class="form-control"
+                                       @bind-Value="eventModel.OnlineEventUrl"
+                                       autocomplete="off"
+                                       autocapitalize="off"
+                                       spellcheck="false" />
                         </div>
                     }
                     else
@@ -229,7 +253,10 @@
                                 <input class="form-control"
                                        value="@venueSearch"
                                        placeholder="Eg 529757 or Tampines Avenue 1"
-                                       @oninput="OnVenueInput" />
+                                       @oninput="OnVenueInput"
+                                       autocomplete="new-password"
+                                       autocapitalize="off"
+                                       spellcheck="false" />
 
                                 <button type="button" class="btn btn-outline-secondary" @onclick="ManualSearch">
                                     Search
@@ -269,22 +296,39 @@
 
                         <div class="mb-3">
                             <label class="form-label">Venue Name</label>
-                            <InputText class="form-control" @bind-Value="eventModel.VenueName" />
+                            <InputText class="form-control"
+                                       @bind-Value="eventModel.VenueName"
+                                       autocomplete="new-password"
+                                       autocapitalize="off"
+                                       spellcheck="false" />
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Venue Address</label>
-                            <InputText class="form-control" @bind-Value="eventModel.VenueAddress" />
+                            <InputText class="form-control"
+                                       @bind-Value="eventModel.VenueAddress"
+                                       autocomplete="new-password"
+                                       autocapitalize="off"
+                                       spellcheck="false" />
                         </div>
 
                         <div class="row g-2">
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Postal Code</label>
-                                <InputText class="form-control" @bind-Value="eventModel.PostalCode" />
+                                <InputText class="form-control"
+                                           @bind-Value="eventModel.PostalCode"
+                                           autocomplete="new-password"
+                                           inputmode="numeric"
+                                           autocapitalize="off"
+                                           spellcheck="false" />
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Unit or Room</label>
-                                <InputText class="form-control" @bind-Value="eventModel.UnitRoom" />
+                                <InputText class="form-control"
+                                           @bind-Value="eventModel.UnitRoom"
+                                           autocomplete="new-password"
+                                           autocapitalize="off"
+                                           spellcheck="false" />
                             </div>
                         </div>
                     }
@@ -295,12 +339,20 @@
 
                     <div class="mb-3">
                         <label class="form-label">Organiser Name</label>
-                        <InputText class="form-control" @bind-Value="eventModel.OrganizerName" />
+                        <InputText class="form-control"
+                                   @bind-Value="eventModel.OrganizerName"
+                                   autocomplete="new-password"
+                                   autocapitalize="off"
+                                   spellcheck="false" />
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Contact Email</label>
-                        <InputText class="form-control" @bind-Value="eventModel.ContactEmail" />
+                        <InputText class="form-control"
+                                   @bind-Value="eventModel.ContactEmail"
+                                   autocomplete="new-password"
+                                   autocapitalize="off"
+                                   spellcheck="false" />
                     </div>
                 </div>
             </div>
@@ -402,10 +454,6 @@
         endTimeText = "";
     }
 
-    // -----------------------
-    // Readiness and warnings
-    // -----------------------
-
     private bool HasTitle => !string.IsNullOrWhiteSpace(eventModel.Title);
     private bool HasBanner => !string.IsNullOrWhiteSpace(eventModel.BannerImagePath);
 
@@ -503,10 +551,6 @@
         }
     }
 
-    // -----------------------
-    // Ticket price preview
-    // -----------------------
-
     private string TicketPricePreview
     {
         get
@@ -531,7 +575,6 @@
 
         var t = eventModel.EventType ?? "";
 
-        // Only apply suggestions when user has not set meaningful values yet
         var hasPrices = eventModel.TicketPriceMin > 0 || eventModel.TicketPriceMax > 0;
         var hasCapacity = eventModel.Capacity != 0;
 
@@ -581,7 +624,6 @@
             if (!hasPrices) { eventModel.TicketPriceMin = 0; eventModel.TicketPriceMax = 0; }
         }
 
-        // Keep default aligned for display use
         if (eventModel.TicketPriceMin > 0 && eventModel.TicketPriceMax > 0 && eventModel.TicketPriceMin == eventModel.TicketPriceMax)
         {
             eventModel.TicketPriceDefault = eventModel.TicketPriceMin;
@@ -601,10 +643,6 @@
         }
     }
 
-    // -----------------------
-    // Time input helpers
-    // -----------------------
-
     private void OnStartTimeInput(ChangeEventArgs e)
     {
         startTimeText = e.Value?.ToString() ?? "";
@@ -623,10 +661,6 @@
         if (TimeSpan.TryParse(s, CultureInfo.InvariantCulture, out var ts)) return ts;
         return null;
     }
-
-    // -----------------------
-    // Banner upload
-    // -----------------------
 
     private async Task OnBannerSelected(InputFileChangeEventArgs e)
     {
@@ -663,15 +697,10 @@
         previewImageUrl = eventModel.BannerImagePath;
     }
 
-    // -----------------------
-    // Save
-    // -----------------------
-
     private async Task Save()
     {
         eventModel.LastUpdatedOn = DateTime.Now;
 
-        // Location cleanup
         if (eventModel.IsOnline)
         {
             eventModel.VenueName = null;
@@ -684,19 +713,16 @@
             eventModel.OnlineEventUrl = null;
         }
 
-        // Event type cleanup
         if (eventModel.EventType != "Other")
         {
             eventModel.EventTypeOther = null;
         }
 
-        // Date guard
         if (eventModel.EndDate.Date < eventModel.StartDate.Date)
         {
             eventModel.EndDate = eventModel.StartDate;
         }
 
-        // Ticketing cleanup
         if (!eventModel.TicketingEnabled)
         {
             eventModel.Capacity = 0;
@@ -716,11 +742,11 @@
             if (eventModel.TicketPriceMin > eventModel.TicketPriceMax && eventModel.TicketPriceMax != 0)
             {
                 var tmp = eventModel.TicketPriceMin;
+
                 eventModel.TicketPriceMin = eventModel.TicketPriceMax;
                 eventModel.TicketPriceMax = tmp;
             }
 
-            // Align default for fixed price events
             if (eventModel.TicketPriceMin > 0 && eventModel.TicketPriceMax > 0 && eventModel.TicketPriceMin == eventModel.TicketPriceMax)
             {
                 eventModel.TicketPriceDefault = eventModel.TicketPriceMin;
@@ -731,15 +757,18 @@
             }
         }
 
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        eventModel.CreatedByAdmin = true;
+        eventModel.CreatedByName = "Event Registration Company";
+        eventModel.CreatedByUserId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
         Db.Events.Add(eventModel);
         await Db.SaveChangesAsync();
 
         Navigation.NavigateTo("/events");
     }
-
-    // -----------------------
-    // OneMap search
-    // -----------------------
 
     private async Task OnVenueInput(ChangeEventArgs e)
     {

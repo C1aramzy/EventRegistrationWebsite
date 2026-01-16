@@ -6,9 +6,12 @@
 @using Microsoft.EntityFrameworkCore
 @using EventRegistrationWebsite.Models
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 
 @inject EventRegistrationWebsite.Data.ApplicationDbContext Db
 @inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
 
 <h3 class="mb-3">Buy tickets</h3>
 
@@ -75,7 +78,7 @@ else
                 </div>
             </div>
 
-            <button class="btn btn-outline-secondary w-100 mt-3" @onclick="Back">
+            <button class="btn btn-outline-secondary w-100 mt-3" @onclick="Back" disabled="@isSubmitting">
                 Back to events
             </button>
         </div>
@@ -83,7 +86,7 @@ else
         <div class="col-12 col-lg-5">
             <div class="card">
                 <div class="card-body">
-                    <h5 class="mb-3">Checkout (mock)</h5>
+                    <h5 class="mb-3">Checkout</h5>
 
                     @if (!ev.TicketingEnabled)
                     {
@@ -109,7 +112,7 @@ else
 
                             <div class="mb-2">
                                 <label class="form-label">Quantity</label>
-                                <InputNumber class="form-control" @bind-Value="model.Quantity" />
+                                <InputNumber class="form-control" @bind-Value="model.Quantity" disabled="@isSubmitting" />
                                 <div class="form-text">
                                     Maximum tickets that can be purchased is @MaxPerOrder
                                 </div>
@@ -117,17 +120,16 @@ else
 
                             <div class="p-3 rounded bg-light border mt-3">
                                 <div class="d-flex justify-content-between">
-                                    <span class="text-muted">Total (mock)</span>
+                                    <span class="text-muted">Total</span>
                                     <span class="fw-semibold">@TotalText</span>
                                 </div>
 
-                                <button type="submit" class="btn btn-primary w-100 mt-3" disabled="@IsFull">
-                                    Register (mock)
+                                <button type="submit" class="btn btn-primary w-100 mt-3" disabled="@(!CanSubmit)">
+                                    @(isSubmitting ? "Redirecting..." : "Proceed to payment")
                                 </button>
 
                                 <div class="text-muted small mt-2">
-                                    Registration and payment flow can be added later.
-                                    This mock will increase occupancy.
+                                    You will be redirected to a secure payment page to complete checkout.
                                 </div>
                             </div>
                         </EditForm>
@@ -146,6 +148,10 @@ else
     private string error = "";
     private BuyModel model = new();
 
+    private bool isSubmitting;
+
+    private bool CanSubmit => ev != null && ev.TicketingEnabled && !IsFull && !isSubmitting;
+
     protected override async Task OnInitializedAsync()
     {
         ev = await Db.Events.FirstOrDefaultAsync(x => x.EventID == id);
@@ -154,7 +160,15 @@ else
 
     private void Back() => Nav.NavigateTo("/events");
 
-    private int MaxPerOrder => 4;
+    private int MaxPerOrder
+    {
+        get
+        {
+            if (ev == null) return 4;
+            if (ev.MaxTicketsPerOrder <= 0) return 4;
+            return ev.MaxTicketsPerOrder;
+        }
+    }
 
     private decimal UnitPrice
     {
@@ -219,32 +233,10 @@ else
         {
             if (ev == null) return 0;
             if (!ev.TicketingEnabled) return 0;
-
-            if (ev.Capacity <= 0)
-            {
-                if (ev.DemoFillPercent.HasValue) return ClampPercent(ev.DemoFillPercent.Value);
-                return 0;
-            }
-
-            if (ev.DemoFillPercent.HasValue) return ClampPercent(ev.DemoFillPercent.Value);
+            if (ev.Capacity <= 0) return 0;
 
             var pct = (int)Math.Round((RealSold / (double)ev.Capacity) * 100.0);
             return ClampPercent(pct);
-        }
-    }
-
-    private int SoldShown
-    {
-        get
-        {
-            if (ev == null) return 0;
-            if (!ev.TicketingEnabled) return 0;
-            if (ev.Capacity <= 0) return 0;
-
-            var shown = (int)Math.Round(ev.Capacity * (FillPct / 100.0));
-            if (shown < 0) shown = 0;
-            if (shown > ev.Capacity) shown = ev.Capacity;
-            return shown;
         }
     }
 
@@ -253,11 +245,11 @@ else
         get
         {
             if (CapacityValue <= 0) return int.MaxValue;
-            return Math.Max(0, CapacityValue - SoldShown);
+            return Math.Max(0, CapacityValue - RealSold);
         }
     }
 
-    private bool IsFull => CapacityValue > 0 && SoldShown >= CapacityValue;
+    private bool IsFull => CapacityValue > 0 && RealSold >= CapacityValue;
 
     private string StatusLabel
     {
@@ -276,14 +268,8 @@ else
         {
             if (ev == null) return "-";
             if (!ev.TicketingEnabled) return "-";
-
-            if (ev.Capacity <= 0)
-            {
-                if (ev.DemoFillPercent.HasValue) return $"{FillPct}% shown";
-                return "Unlimited";
-            }
-
-            return $"{SoldShown} / {ev.Capacity}";
+            if (ev.Capacity <= 0) return "Unlimited";
+            return $"{RealSold} / {ev.Capacity}";
         }
     }
 
@@ -301,56 +287,113 @@ else
 
     private async Task Buy()
     {
+        if (isSubmitting) return;
+
+        isSubmitting = true;
         message = "";
         error = "";
 
-        if (ev == null) return;
-        if (!ev.TicketingEnabled) return;
-
-        var qty = model.Quantity;
-
-        if (qty < 1)
+        try
         {
-            error = "Quantity must be at least 1";
-            return;
-        }
+            if (ev == null) return;
+            if (!ev.TicketingEnabled) return;
 
-        if (qty > MaxPerOrder)
-        {
-            error = $"Maximum tickets that can be purchased is {MaxPerOrder}";
-            return;
-        }
+            var qty = model.Quantity;
 
-        if (ev.Capacity > 0)
-        {
-            var remaining = ev.Capacity - SoldShown;
-            if (remaining <= 0)
+            if (qty < 1)
             {
-                error = "No seats left (mock)";
+                error = "Quantity must be at least 1";
                 return;
             }
 
-            if (qty > remaining)
+            if (qty > MaxPerOrder)
             {
-                error = $"Only {remaining} seat(s) left";
+                error = $"Maximum tickets that can be purchased is {MaxPerOrder}";
                 return;
             }
+
+            if (ev.Capacity > 0)
+            {
+                var remaining = ev.Capacity - RealSold;
+
+                if (remaining <= 0)
+                {
+                    error = "No seats left";
+                    return;
+                }
+
+                if (qty > remaining)
+                {
+                    error = $"Only {remaining} seat(s) left";
+                    return;
+                }
+            }
+
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                error = "You must be logged in to continue.";
+                return;
+            }
+
+            var existingPendingPayment = await Db.PaymentTransactions
+                .Where(p => p.UserId == userId && p.Status == "Pending")
+                .Join(
+                    Db.OrderDrafts.Where(d =>
+                        d.UserId == userId &&
+                        d.EventID == ev.EventID &&
+                        d.TicketQuantity == qty &&
+                        d.Status == "Pending"),
+                    p => p.OrderDraftId,
+                    d => d.OrderDraftId,
+                    (p, d) => p)
+                .OrderByDescending(p => p.CreatedOn)
+                .FirstOrDefaultAsync();
+
+            if (existingPendingPayment != null)
+            {
+                Nav.NavigateTo($"/pay/gateway/{existingPendingPayment.PaymentTransactionId}");
+                return;
+            }
+
+            var subtotal = UnitPrice * qty;
+
+            var draft = new OrderDraft
+            {
+                UserId = userId,
+                EventID = ev.EventID,
+                TicketQuantity = qty,
+                Subtotal = subtotal,
+                Discount = 0,
+                FinalAmount = subtotal,
+                Status = "Pending"
+            };
+
+            Db.OrderDrafts.Add(draft);
+            await Db.SaveChangesAsync();
+
+            var payment = new PaymentTransaction
+            {
+                OrderDraftId = draft.OrderDraftId,
+                UserId = userId,
+                Amount = draft.FinalAmount,
+                Status = "Pending"
+            };
+
+            Db.PaymentTransactions.Add(payment);
+            await Db.SaveChangesAsync();
+
+            Nav.NavigateTo($"/pay/gateway/{payment.PaymentTransactionId}");
         }
-
-        ev.TicketsSold = RealSold + qty;
-        ev.LastUpdatedOn = DateTime.Now;
-
-        if (ev.Capacity > 0 && ev.DemoFillPercent.HasValue)
+        finally
         {
-            var addPct = (int)Math.Ceiling(qty / (double)ev.Capacity * 100.0);
-            ev.DemoFillPercent = ClampPercent(ev.DemoFillPercent.Value + addPct);
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                isSubmitting = false;
+            }
         }
-
-        await Db.SaveChangesAsync();
-
-        model.Quantity = 1;
-        message = $"Registered {qty} ticket(s) (mock). Occupancy increased.";
-        StateHasChanged();
     }
 
     private static int ClampPercent(int p)
@@ -366,4 +409,3 @@ else
         public int Quantity { get; set; } = 1;
     }
 }
-

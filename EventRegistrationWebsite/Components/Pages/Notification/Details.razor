@@ -1,0 +1,47 @@
+﻿@page "/notifications/details"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Notification Details</PageTitle>
+
+<h1>Notification Details</h1>
+<hr />
+
+@if (notification == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <dl class="row">
+        <dt class="col-sm-2">Event ID</dt>
+        <dd class="col-sm-10">@notification.EventID</dd>
+
+        <dt class="col-sm-2">Message</dt>
+        <dd class="col-sm-10">@notification.Message</dd>
+
+        <dt class="col-sm-2">Created</dt>
+        <dd class="col-sm-10">@notification.DateCreated</dd>
+
+        <dt class="col-sm-2">Read?</dt>
+        <dd class="col-sm-10">@notification.IsRead</dd>
+    </dl>
+
+    <a href="/notifications">Back</a>
+}
+
+@code {
+    private Notification? notification;
+
+    [SupplyParameterFromQuery]
+    public int NotificationID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        notification = await Db.Notifications.FindAsync(NotificationID);
+        if (notification == null)
+            NavigationManager.NavigateTo("/notifications");
+    }
+}

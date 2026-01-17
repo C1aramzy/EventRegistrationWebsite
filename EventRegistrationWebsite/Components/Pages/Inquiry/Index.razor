@@ -1,0 +1,26 @@
+﻿@page "/inquiries"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject ApplicationDbContext Db
+
+<PageTitle>Inquiries</PageTitle>
+
+<h1>Inquiries</h1>
+
+<p>
+    <a href="/inquiries/create">Create New</a>
+</p>
+
+<QuickGrid Class="table" Items="Db.Inquiries">
+    <PropertyColumn Property="i => i.SenderName" />
+    <PropertyColumn Property="i => i.SenderEmail" />
+    <PropertyColumn Property="i => i.Subject" />
+    <PropertyColumn Property="i => i.ReceivedDate" />
+
+    <TemplateColumn Context="i">
+        <a href="@($"/inquiries/details?inquiryid={i.InquiryID}")">Details</a> |
+        <a href="@($"/inquiries/edit?inquiryid={i.InquiryID}")">Edit</a> |
+        <a href="@($"/inquiries/delete?inquiryid={i.InquiryID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>

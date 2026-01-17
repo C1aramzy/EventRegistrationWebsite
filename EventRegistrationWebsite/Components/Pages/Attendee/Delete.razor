@@ -1,0 +1,39 @@
+﻿@page "/attendees/delete"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete Attendee</PageTitle>
+
+@if (attendee == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <p>Are you sure?</p>
+    <button class="btn btn-danger" @onclick="DeleteAttendee">Delete</button>
+    <a href="/attendees">Cancel</a>
+}
+
+@code {
+    private Attendee? attendee;
+
+    [SupplyParameterFromQuery]
+    public int AttendeeID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        attendee = await Db.Attendees.FindAsync(AttendeeID);
+        if (attendee == null)
+            NavigationManager.NavigateTo("/attendees");
+    }
+
+    private async Task DeleteAttendee()
+    {
+        Db.Attendees.Remove(attendee!);
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/attendees");
+    }
+}

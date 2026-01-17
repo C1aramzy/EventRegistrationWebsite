@@ -1,0 +1,51 @@
+﻿@page "/inquiries/details"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Inquiry Details</PageTitle>
+
+@if (inquiry == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <dl class="row">
+        <dt class="col-sm-2">Name</dt>
+        <dd class="col-sm-10">@inquiry.SenderName</dd>
+
+        <dt class="col-sm-2">Email</dt>
+        <dd class="col-sm-10">@inquiry.SenderEmail</dd>
+
+        <dt class="col-sm-2">Subject</dt>
+        <dd class="col-sm-10">@inquiry.Subject</dd>
+
+        <dt class="col-sm-2">Message</dt>
+        <dd class="col-sm-10">@inquiry.Message</dd>
+
+        <dt class="col-sm-2">Received</dt>
+        <dd class="col-sm-10">@inquiry.ReceivedDate</dd>
+
+        <dt class="col-sm-2">Reply</dt>
+        <dd class="col-sm-10">@inquiry.ReplyMessage</dd>
+    </dl>
+
+    <a href="/inquiries">Back</a>
+}
+
+@code {
+    private Inquiry? inquiry;
+
+    [SupplyParameterFromQuery]
+    public int InquiryID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        inquiry = await Db.Inquiries.FindAsync(InquiryID);
+        if (inquiry == null)
+            NavigationManager.NavigateTo("/inquiries");
+    }
+}
+

@@ -1,0 +1,51 @@
+﻿@page "/waitlists/create"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Waitlist</PageTitle>
+
+<h1>Create Waitlist</h1>
+<hr />
+
+<EditForm Model="Waitlist" OnValidSubmit="AddWaitlist">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" />
+
+    <div class="mb-3">
+        <label class="form-label">Name</label>
+        <InputText @bind-Value="Waitlist.Name" class="form-control" />
+        <ValidationMessage For="() => Waitlist.Name" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <InputText @bind-Value="Waitlist.Email" class="form-control" />
+        <ValidationMessage For="() => Waitlist.Email" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Event ID</label>
+        <InputNumber @bind-Value="Waitlist.EventID" class="form-control" />
+        <ValidationMessage For="() => Waitlist.EventID" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Join Waitlist</button>
+</EditForm>
+
+<a href="/waitlists">Back to List</a>
+
+@code {
+    private Waitlist Waitlist { get; set; } = new()
+    {
+        CreatedDate = DateTime.Now
+    };
+
+    private async Task AddWaitlist()
+    {
+        Db.Waitlists.Add(Waitlist);
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/waitlists");
+    }
+}

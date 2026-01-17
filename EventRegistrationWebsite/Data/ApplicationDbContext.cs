@@ -81,5 +81,11 @@ namespace EventRegistrationWebsite.Data
 
         }
 
+        public DbSet<Attendee> Attendees { get; set; } = default!;
+        public DbSet<Inquiry> Inquiries { get; set; } = default!;
+        public DbSet<Media> Media { get; set; } = default!;
+        public DbSet<Notification> Notifications { get; set; } = default!;
+        public DbSet<Waitlist> Waitlists { get; set; } = default!;
     }
 }
+

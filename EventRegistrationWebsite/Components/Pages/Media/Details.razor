@@ -1,0 +1,48 @@
+﻿@page "/media/details"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Media Details</PageTitle>
+
+<h1>Media Details</h1>
+<hr />
+
+@if (mediaItem == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+<dl class="row">
+    <dt class="col-sm-2">File Path</dt>
+    <dd class="col-sm-10">@mediaItem.FilePath</dd>
+
+    <dt class="col-sm-2">Description</dt>
+    <dd class="col-sm-10">@mediaItem.Description</dd>
+
+    <dt class="col-sm-2">Uploaded</dt>
+    <dd class="col-sm-10">@mediaItem.UploadedDate</dd>
+
+    <dt class="col-sm-2">Event ID</dt>
+    <dd class="col-sm-10">@mediaItem.EventID</dd>
+</dl>
+
+<a href="@($"/media/edit?mediaid={mediaItem.MediaID}")">Edit</a>
+< a href = "/media" > Back to List</ a >
+}
+
+@code {
+    private Media? mediaItem;
+
+    [SupplyParameterFromQuery]
+    public int MediaID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        mediaItem = await Db.Media.FindAsync(MediaID);
+        if (mediaItem == null)
+            NavigationManager.NavigateTo("/media");
+    }
+}

@@ -1,0 +1,40 @@
+﻿@page "/inquiries/delete"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete Inquiry</PageTitle>
+
+@if (inquiry == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <p>Are you sure you want to delete this inquiry?</p>
+
+    <button class="btn btn-danger" @onclick="DeleteInquiry">Delete</button>
+    <a class="btn btn-secondary ms-2" href="/inquiries">Cancel</a>
+}
+
+@code {
+    private Inquiry? inquiry;
+
+    [SupplyParameterFromQuery]
+    public int InquiryID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        inquiry = await Db.Inquiries.FindAsync(InquiryID);
+        if (inquiry == null)
+            NavigationManager.NavigateTo("/inquiries");
+    }
+
+    private async Task DeleteInquiry()
+    {
+        Db.Inquiries.Remove(inquiry!);
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/inquiries");
+    }
+}

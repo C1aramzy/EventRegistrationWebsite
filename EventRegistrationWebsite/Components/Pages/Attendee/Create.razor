@@ -1,0 +1,55 @@
+﻿@page "/attendees/create"
+@using EventRegistrationWebsite.Data
+@using EventRegistrationWebsite.Models
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Attendee</PageTitle>
+
+<h1>Create Attendee</h1>
+<hr />
+
+<EditForm Model="Attendee" OnValidSubmit="AddAttendee">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" />
+
+    <div class="mb-3">
+        <label class="form-label">First Name</label>
+        <InputText @bind-Value="Attendee.FirstName" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Last Name</label>
+        <InputText @bind-Value="Attendee.LastName" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <InputText @bind-Value="Attendee.Email" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Phone Number</label>
+        <InputText @bind-Value="Attendee.PhoneNumber" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Event ID</label>
+        <InputNumber @bind-Value="Attendee.EventID" class="form-control" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create</button>
+</EditForm>
+
+<a href="/attendees">Back to List</a>
+
+@code {
+    private Attendee Attendee { get; set; } = new();
+
+    private async Task AddAttendee()
+    {
+        Db.Attendees.Add(Attendee);
+        await Db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/attendees");
+    }
+}

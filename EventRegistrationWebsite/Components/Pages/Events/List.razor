@@ -5,7 +5,6 @@
 @using EventRegistrationWebsite.Data
 @using EventRegistrationWebsite.Models
 
-// ADDED
 @using EventRegistrationWebsite.Models.voucher
 
 @using Microsoft.AspNetCore.Authorization
@@ -673,7 +672,6 @@
 
         showGamePopup = true;
 
-        // ADDED: if a voucher code is already saved for today, make sure it is inserted into DB wallet
         if (lastWonToday)
         {
             var userId = await GetUserIdAsync();
@@ -738,7 +736,6 @@
             voucherCode = $"VOUCHER{DateTime.Now:HHmmss}";
             await LocalStore.SetAsync(TodayResultKey(), voucherCode);
 
-            // ADDED: persist to wallet DB so /my-vouchers can show it
             var userId = await GetUserIdAsync();
             if (!string.IsNullOrWhiteSpace(userId))
             {
@@ -768,7 +765,6 @@
         return Task.CompletedTask;
     }
 
-    // ADDED: get logged in user id
     private async Task<string> GetUserIdAsync()
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
@@ -776,7 +772,7 @@
         return user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
     }
 
-    // ADDED: create Voucher row if missing, then create UserVoucher wallet row if missing
+
     private async Task EnsureVoucherInWalletAsync(string userId, string code)
     {
         if (string.IsNullOrWhiteSpace(userId)) return;
